@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const { userSchema } = require('./userModel');
+import mongoose from 'mongoose';
+import { userSchema } from './userModel';
 const Schema = mongoose.Schema;
 
 const playerSchema = new Schema({

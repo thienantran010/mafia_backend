@@ -1,19 +1,29 @@
-const { User } = require('../models/userModel');
-const bcrypt = require('bcrypt');
-const sgMail = require('@sendgrid/mail');
-const dotenv = require('dotenv');
-const jwt = require('jsonwebtoken');
+import { User } from '../models/userModel';
+import bcrypt from 'bcrypt';
+import sgMail from '@sendgrid/mail';
+import dotenv from 'dotenv';
+import jwt, { JwtPayload } from 'jsonwebtoken';
+import { Request, Response } from 'express';
 
 // configuration
 dotenv.config();
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY as string;
+sgMail.setApiKey(SENDGRID_API_KEY);
+const ACCESS_TOKEN_KEY = process.env.ACCESS_TOKEN_KEY as string;
+const REFRESH_TOKEN_KEY = process.env.REFRESH_TOKEN_KEY as string;
+
+// data declaration
+interface Payload {
+    id: string
+}
+
 
 /*******************
 * HELPER FUNCTIONS *
 *******************/
 
 // to send mail
-const sendMail = async (email, verificationCode) => {
+const sendMail = async (email: string, verificationCode: string) : Promise<void> => {
     const msg = {
         to: email, // Change to your recipient
         from: 'mafiawebappmailer@gmail.com', // Change to your verified sender
@@ -30,58 +40,54 @@ const sendMail = async (email, verificationCode) => {
 }
 
 // create access token
-const createAccessToken = (payload) => {
-    return jwt.sign({ ...payload }, process.env.ACCESS_TOKEN_KEY, {
+const createAccessToken = (payload: JwtPayload) => {
+    return jwt.sign({ ...payload }, ACCESS_TOKEN_KEY, {
       expiresIn: 3 * 24 * 60 * 60,
     });
 };
 
 // create refresh token
-const createRefreshToken = (payload) => {
-    return jwt.sign({ ...payload }, process.env.REFRESH_TOKEN_KEY, {
+const createRefreshToken = (payload: JwtPayload) => {
+    return jwt.sign({ ...payload }, REFRESH_TOKEN_KEY, {
         expiresIn: 3 * 24 * 60 * 60,
     });
 };
-
-
-// find user by email
-/*
-const findByEmail = async (email) => {
-    const resultsArray = await userRepository.search().where('email').eq(email).return.all();
-    if (resultsArray.length === 0) {
-        return null;
-    }
-    else {
-        return resultsArray[0];
-    }
-}
-*/
 
 /*******************
 *** CONTROLLERS ****
 *******************/
 
 //refresh controller
-exports.refresh = (req, res) => {
+const refresh = (req: Request, res: Response) => {
     const cookies = req.cookies;
     if (!cookies?.refreshToken) return res.status(401).json({message: 'Unauthorized'});
-    const refreshToken = cookies.refreshToken;
-    jwt.verify(
-        refreshToken,
-        process.env.REFRESH_TOKEN_KEY,
-        async (err, decoded) => {
-            if (err) return res.status(403).json({ message: 'Forbidden' });
-            const userExists = await User.findById(decoded.id).exec();
-            if (!userExists) return res.status(401).json({message: 'Unauthorized'});
-            const accessToken = createAccessToken({ id: decoded.id });
-            const username = userExists.username;
-            res.json({ accessToken, username });
+    const refreshToken : string = cookies.refreshToken;
+    try {
+        const decoded = jwt.verify(refreshToken, REFRESH_TOKEN_KEY);
+        if (typeof decoded === "object") {
+
+            const handleRefresh = async (decoded : JwtPayload) => {
+                const userExists = await User.findById(decoded.id).exec();
+                if (!userExists) return res.status(401).json({message: 'Unauthorized'});
+                const accessToken = createAccessToken({ id: decoded.id });
+                const username = userExists.username;
+                return { accessToken, username };
+            }
+
+            handleRefresh(decoded).then((data) => {
+                return res.json(data);
+            })
         }
-    )
+    }
+
+    catch (error) {
+        console.log(error);
+        return res.status(403).json({ message: 'Forbidden '});
+    }
 };
 
 // login controller
-exports.login = async (req, res) => {
+const login = async (req: Request, res: Response) => {
     const { email, password } = req.body
     if (!email || !password) {
         return res.status(400).json({message:'All fields are required'}) // general client error
@@ -102,10 +108,10 @@ exports.login = async (req, res) => {
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             secure: true,
-            sameSite: 'None',
+            sameSite: 'none',
             maxAge: 24 * 60 * 60 * 1000
         });
-        res.json({ accessToken, username });
+        return res.json({ accessToken, username });
     }
     catch (error) {
         console.log(error);
@@ -113,14 +119,14 @@ exports.login = async (req, res) => {
 };
 
 // logout controller
-exports.logout = async (req, res) => {
+const logout = async (req: Request, res: Response) => {
     const cookies = req.cookies;
     if (!cookies?.refreshToken) return res.status(204).json({message: "No refresh token to clear"});
     res.clearCookie(
         'refreshToken',
         {
             httpOnly: true,
-            sameSite: 'None',
+            sameSite: 'none',
             secure: true
         }
     )
@@ -128,7 +134,7 @@ exports.logout = async (req, res) => {
 };
 
 // register controller
-exports.register = async (req, res) => {
+const register = async (req: Request, res: Response) => {
     try {
         const { username, email, password } = req.body;
         if (!username || !email || !password) {
@@ -151,8 +157,9 @@ exports.register = async (req, res) => {
 
         let userRecord = new User(user);
         userRecord = await userRecord.save();
-        let recordId = userRecord._id;
-        sendMail(email, recordId);
+        const recordId = userRecord._id;
+        const recordIdString = recordId.toString();
+        sendMail(email, recordIdString);
         return res.json({ message: "Check email to confirm your account." });
     }
     catch (error) {
@@ -161,11 +168,10 @@ exports.register = async (req, res) => {
 };
 
 // verify email controller
-exports.verifyEmail = async (req, res) => {
+const verifyEmail = async (req: Request, res: Response) => {
     try {
         const { recordId } = req.params;
         const existingUser = await User.findById(recordId).exec();
-        console.log(existingUser);
         if (existingUser) {
             if (existingUser.isVerified === false) {
                 existingUser.isVerified = true;
@@ -182,3 +188,5 @@ exports.verifyEmail = async (req, res) => {
         console.log(error);
     }
 };
+
+export { login, logout, register, verifyEmail, refresh};

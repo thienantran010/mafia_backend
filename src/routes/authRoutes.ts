@@ -1,7 +1,7 @@
-const { Router } = require('express');
-const bodyParser = require('body-parser');
-const dotenv = require('dotenv');
-const { login, logout, register, refresh, verifyEmail } = require('../controllers/authController');
+import { Router } from 'express';
+import bodyParser from 'body-parser';
+import dotenv from 'dotenv';
+import { login, logout, register, refresh, verifyEmail } from '../controllers/authController';;
 
 // configuration
 dotenv.config();
@@ -19,4 +19,4 @@ authRouter.post('/refresh', refresh);
 
 authRouter.post('/:recordId', verifyEmail);
 
-exports.authRouter = authRouter;
+export default authRouter;

@@ -1,7 +1,7 @@
-const { Router } = require('express');
-const bodyParser = require('body-parser');
-const dotenv = require('dotenv');
-const { createOpenGame, getAllOpenGames, deleteOpenGame, addPlayerToGame, removePlayerFromGame } = require('../controllers/openGameController');
+import { Router } from 'express';
+import bodyParser from 'body-parser';
+import dotenv from 'dotenv';
+import { createOpenGame, getAllOpenGames, deleteOpenGame, addPlayerToGame, removePlayerFromGame } from '../controllers/openGameController';
 
 // configuration
 dotenv.config();
@@ -23,4 +23,4 @@ openGameRouter.post('/addPlayerToGame', addPlayerToGame);
 
 openGameRouter.post('/removePlayerFromGame', removePlayerFromGame);
 
-exports.openGameRouter = openGameRouter;
+export default openGameRouter;
