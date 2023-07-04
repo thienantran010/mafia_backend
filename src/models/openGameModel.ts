@@ -3,10 +3,24 @@ import { userSchema } from './userModel';
 
 const Schema = mongoose.Schema;
 
-export interface OpenGameDocument extends mongoose.Document {
+export interface playerJson {
+    id: string;
+    username: string;
+}
+export interface openGameJson {
+    id: string;
     name: string;
     roles: string[];
-    players: mongoose.Types.ObjectId[];
+    playerObjs: playerJson[];
+    numPlayersJoined: number;
+    numPlayersMax: number;
+    isInGame?: boolean;
+}
+
+export interface OpenGameDocument extends mongoose.Document {
+    name: string;
+    roles: mongoose.Types.Array<string>;
+    players: mongoose.Types.Array<mongoose.Types.ObjectId>;
     numPlayersJoined: number;
     numPlayersMax: number;
 };

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
-import { createOpenGame, getAllOpenGames, deleteOpenGame, addPlayerToGame, removePlayerFromGame } from '../controllers/openGameController';
+import { createOpenGame, getAllOpenGames, addPlayerToGame, removePlayerFromGame } from '../controllers/openGameController';
 
 // configuration
 dotenv.config();
@@ -17,7 +17,7 @@ openGameRouter.post('/createOpenGame', createOpenGame);
 
 openGameRouter.get('/getAllOpenGames', getAllOpenGames);
 
-openGameRouter.delete('/deleteOpenGame', deleteOpenGame);
+// openGameRouter.delete('/deleteOpenGame', deleteOpenGame);
 
 openGameRouter.post('/addPlayerToGame', addPlayerToGame);
 

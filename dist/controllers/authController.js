@@ -102,7 +102,7 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             return res.status(400).json({ message: "Email or password is wrong" }); // general client error
         }
         const username = existingUser.username;
-        const payload = { id: existingUser._id };
+        const payload = { id: existingUser._id.toString() };
         const accessToken = createAccessToken(payload);
         const refreshToken = createRefreshToken(payload);
         res.cookie("refreshToken", refreshToken, {
