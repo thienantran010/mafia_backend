@@ -17,7 +17,7 @@ openGameRouter.use(body_parser_1.default.json());
 openGameRouter.use(body_parser_1.default.urlencoded({ extended: false }));
 openGameRouter.post('/createOpenGame', openGameController_1.createOpenGame);
 openGameRouter.get('/getAllOpenGames', openGameController_1.getAllOpenGames);
-openGameRouter.delete('/deleteOpenGame', openGameController_1.deleteOpenGame);
+// openGameRouter.delete('/deleteOpenGame', deleteOpenGame);
 openGameRouter.post('/addPlayerToGame', openGameController_1.addPlayerToGame);
 openGameRouter.post('/removePlayerFromGame', openGameController_1.removePlayerFromGame);
 exports.default = openGameRouter;

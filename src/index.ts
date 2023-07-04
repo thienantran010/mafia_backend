@@ -21,7 +21,7 @@ import verifyJwt from "./middleware/verifyJwt";
 
 // types
 import { ChangeStreamDeleteDocument, ChangeStreamInsertDocument, ChangeStreamUpdateDocument} from 'mongodb';
-import { OpenGameDocument } from './models/openGameModel';
+import { OpenGameDocument, openGameJson, playerJson } from './models/openGameModel';
 import { UserDocument } from './models/userModel';
 // configuration
 dotenv.config();
@@ -72,57 +72,69 @@ openGameChangeStream.on("change", (data: ChangeStreamEvent) => {
   async function findAllUsernames (playerIds: mongoose.Types.ObjectId[]) {
     const playerObjs = await Promise.all(playerIds.map(async (playerId) => {
       const playerObj = await User.findById(playerId, 'username').exec();
-      return playerObj;
+      return {
+        id: playerObj?._id.toString(),
+        username: playerObj?.username
+      }
     }));
-    return playerObjs;
+
+    const playerObjsFiltered = playerObjs.filter((playerObj) => {
+      return playerObj.id !== undefined;
+    })
+
+    return playerObjsFiltered as playerJson[];
   }
 
   switch (data.operationType) {
 
     case 'insert':
-      const playerIds = data.fullDocument.players;
+      const playerIds : mongoose.Types.Array<mongoose.Types.ObjectId> = data.fullDocument.players;
       findAllUsernames(playerIds).then((playerObjs) => {
-        const gameObj = {...data.fullDocument, players: playerObjs};
+        const {_id, name, roles, players, numPlayersJoined, numPlayersMax} = data.fullDocument;
+        const idString = (_id as mongoose.Types.ObjectId).toString();
+        const gameObj : openGameJson = {id: idString, name, roles, playerObjs, numPlayersJoined, numPlayersMax };
         io.emit("openGame:create", gameObj);
+        console.log('emit create')
       });
       break;
 
     case 'delete':
-      io.emit("openGame:delete", data.documentKey._id)
+      io.emit("openGame:delete", data.documentKey._id.toString());
       break;
 
     // only update possible is players joining/leaving the game
     case 'update':
       console.log('updating game');
-      const gameId = data.documentKey._id;
+      const gameId = data.documentKey._id.toString();
 
       if (!data.updateDescription.updatedFields) {
         break;
       }
 
-      const numPlayersJoined = data.updateDescription.updatedFields.numPlayersJoined;
-      let players = data.updateDescription.updatedFields.players;
+      const numPlayersJoined = data.updateDescription.updatedFields.numPlayersJoined as number;
+      const playerIdsLeave = data.updateDescription.updatedFields.players;
 
       // if a player joins the game, data.players doesn't exist
       // however, players.1 where the number is the index of the players array does exist
       // and contains the player id
-      if (players !== undefined) {
-        console.log(players);
-        findAllUsernames(players).then((playerObjs) => {
+      if (playerIdsLeave !== undefined) {
+        console.log('player left')
+        console.log(data.updateDescription.updatedFields);
+        findAllUsernames(playerIdsLeave).then((playerObjs) => {
           io.emit("openGame:update:leave", gameId, numPlayersJoined, playerObjs);
         });
         break;
       }
 
       else {
-        console.log(data);
+        console.log('player joined')
         try {
-          const playerIds = Object.values(data.updateDescription.updatedFields).filter((value) => {
+          const playerIdsJoin = Object.values(data.updateDescription.updatedFields).filter((value) => {
             return value instanceof mongoose.Types.ObjectId;
-          });
+          }) as mongoose.Types.Array<mongoose.Types.ObjectId>;
 
-          if (playerIds.length > 0) {
-            findAllUsernames(playerIds).then((playerObjs) => {
+          if (playerIdsJoin.length > 0) {
+            findAllUsernames(playerIdsJoin).then((playerObjs) => {
               io.emit("openGame:update:join", gameId, numPlayersJoined, playerObjs)
             })
           }
