@@ -1,13 +1,4 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -24,11 +15,12 @@ const socket_io_1 = require("socket.io");
 // routes
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
 const openGameRoutes_1 = __importDefault(require("./routes/openGameRoutes"));
-// models
-const openGameModel_1 = require("./models/openGameModel");
-const userModel_1 = require("./models/userModel");
+const activeGameRoutes_1 = __importDefault(require("./routes/activeGameRoutes"));
 // middleware
 const verifyJwt_1 = __importDefault(require("./middleware/verifyJwt"));
+// change streams
+const openGameChangeStream_1 = __importDefault(require("./changeStreams/openGameChangeStream"));
+const activeGameChangeStream_1 = __importDefault(require("./changeStreams/activeGameChangeStream"));
 // configuration
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -62,78 +54,9 @@ const io = new socket_io_1.Server(httpServer, {
 httpServer.listen(port, () => {
     console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
 });
-// change streams
-const openGameChangeStream = openGameModel_1.OpenGame.watch();
-openGameChangeStream.on("change", (data) => {
-    // helper function to produce array of {_id: ObjectId, username: string}
-    function findAllUsernames(playerIds) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const playerObjs = yield Promise.all(playerIds.map((playerId) => __awaiter(this, void 0, void 0, function* () {
-                const playerObj = yield userModel_1.User.findById(playerId, 'username').exec();
-                return {
-                    id: playerObj === null || playerObj === void 0 ? void 0 : playerObj._id.toString(),
-                    username: playerObj === null || playerObj === void 0 ? void 0 : playerObj.username
-                };
-            })));
-            const playerObjsFiltered = playerObjs.filter((playerObj) => {
-                return playerObj.id !== undefined;
-            });
-            return playerObjsFiltered;
-        });
-    }
-    switch (data.operationType) {
-        case 'insert':
-            const playerIds = data.fullDocument.players;
-            findAllUsernames(playerIds).then((playerObjs) => {
-                const { _id, name, roles, players, numPlayersJoined, numPlayersMax } = data.fullDocument;
-                const idString = _id.toString();
-                const gameObj = { id: idString, name, roles, playerObjs, numPlayersJoined, numPlayersMax };
-                io.emit("openGame:create", gameObj);
-                console.log('emit create');
-            });
-            break;
-        case 'delete':
-            io.emit("openGame:delete", data.documentKey._id.toString());
-            break;
-        // only update possible is players joining/leaving the game
-        case 'update':
-            console.log('updating game');
-            const gameId = data.documentKey._id.toString();
-            if (!data.updateDescription.updatedFields) {
-                break;
-            }
-            const numPlayersJoined = data.updateDescription.updatedFields.numPlayersJoined;
-            const playerIdsLeave = data.updateDescription.updatedFields.players;
-            // if a player joins the game, data.players doesn't exist
-            // however, players.1 where the number is the index of the players array does exist
-            // and contains the player id
-            if (playerIdsLeave !== undefined) {
-                console.log('player left');
-                console.log(data.updateDescription.updatedFields);
-                findAllUsernames(playerIdsLeave).then((playerObjs) => {
-                    io.emit("openGame:update:leave", gameId, numPlayersJoined, playerObjs);
-                });
-                break;
-            }
-            else {
-                console.log('player joined');
-                try {
-                    const playerIdsJoin = Object.values(data.updateDescription.updatedFields).filter((value) => {
-                        return value instanceof mongoose_1.default.Types.ObjectId;
-                    });
-                    if (playerIdsJoin.length > 0) {
-                        findAllUsernames(playerIdsJoin).then((playerObjs) => {
-                            io.emit("openGame:update:join", gameId, numPlayersJoined, playerObjs);
-                        });
-                    }
-                }
-                catch (error) {
-                    console.log("error");
-                }
-                break;
-            }
-    }
-});
+// changestream
+(0, openGameChangeStream_1.default)(io);
+(0, activeGameChangeStream_1.default)(io);
 // middleware
 app.use((0, cors_1.default)(corsOptions));
 app.use(body_parser_1.default.json());
@@ -143,3 +66,4 @@ app.use('/auth', authRoutes_1.default);
 app.use(verifyJwt_1.default);
 app.use('/', openGameRoutes_1.default);
 app.use('/openGames', openGameRoutes_1.default);
+app.use('/activeGames', activeGameRoutes_1.default);

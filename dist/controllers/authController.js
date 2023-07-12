@@ -71,7 +71,7 @@ const refresh = (req, res) => {
                 const userExists = yield userModel_1.User.findById(decoded.id).exec();
                 if (!userExists)
                     return res.status(401).json({ message: 'Unauthorized' });
-                const accessToken = createAccessToken({ id: decoded.id });
+                const accessToken = createAccessToken({ id: decoded.id, username: decoded.username });
                 const username = userExists.username;
                 return { accessToken, username };
             });
@@ -102,7 +102,8 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             return res.status(400).json({ message: "Email or password is wrong" }); // general client error
         }
         const username = existingUser.username;
-        const payload = { id: existingUser._id.toString() };
+        // change payload
+        const payload = { id: existingUser._id.toString(), username: existingUser.username };
         const accessToken = createAccessToken(payload);
         const refreshToken = createRefreshToken(payload);
         res.cookie("refreshToken", refreshToken, {

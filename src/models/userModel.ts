@@ -1,7 +1,10 @@
 import mongoose from 'mongoose';
+import uniqueValidator from 'mongoose-unique-validator';
+
 const Schema = mongoose.Schema;
 
-export interface UserDocument extends mongoose.Document {
+export interface UserInterface {
+    _id: mongoose.Types.ObjectId;
     username: string;
     email: string;
     hashedPassword: string;
@@ -11,15 +14,15 @@ export interface UserDocument extends mongoose.Document {
     wins?: number;
     losses?: number;
 }
-export const userSchema = new Schema<UserDocument>({
-    username: {type: String, unique: true, required: true, dropDups: true},
-    email: {type: String, unique: true, required: true, dropDups: true},
+export const userSchema = new Schema<UserInterface>({
+    username: {type: String, unique: true, required: true},
+    email: {type: String, unique: true, required: true},
     hashedPassword: {type: String, required: true},
     isVerified: Boolean,
     signature: String,
     picture: String,
     wins: Number,
     losses: Number
-})
+}).plugin(uniqueValidator);
 
-export const User = mongoose.model<UserDocument>('User', userSchema);
+export const User = mongoose.model<UserInterface>('User', userSchema);

@@ -11,9 +11,11 @@ import { Server } from "socket.io";
 // routes
 import authRouter from "./routes/authRoutes";
 import openGameRouter from './routes/openGameRoutes';
+import activeGameRouter from './routes/activeGameRoutes';
 
 // models
 import { OpenGame } from './models/openGameModel';
+import { ActiveGame } from './models/activeGameModel';
 import { User } from './models/userModel';
 
 // middleware
@@ -21,8 +23,14 @@ import verifyJwt from "./middleware/verifyJwt";
 
 // types
 import { ChangeStreamDeleteDocument, ChangeStreamInsertDocument, ChangeStreamUpdateDocument} from 'mongodb';
-import { OpenGameDocument, openGameJson, playerJson } from './models/openGameModel';
-import { UserDocument } from './models/userModel';
+import { OpenGameInterface, openGameJson, playerJson } from './models/openGameModel';
+import { ActiveGameInterface } from './models/activeGameModel';
+import { UserInterface } from './models/userModel';
+
+// change streams
+import openGameChangeStream from "./changeStreams/openGameChangeStream";
+import activeGameChangeStream from "./changeStreams/activeGameChangeStream";
+
 // configuration
 dotenv.config();
 const app = express();
@@ -59,94 +67,9 @@ httpServer.listen(port, () => {
   console.log(`⚡️[server]: Server is running at http://localhost:${port}`);
 });
 
-// change streams
-const openGameChangeStream = OpenGame.watch();
-
-type ChangeStreamEvent = ChangeStreamInsertDocument<OpenGameDocument> 
-                        | ChangeStreamDeleteDocument<OpenGameDocument>
-                        | ChangeStreamUpdateDocument<OpenGameDocument>;
-
-openGameChangeStream.on("change", (data: ChangeStreamEvent) => {
-
-  // helper function to produce array of {_id: ObjectId, username: string}
-  async function findAllUsernames (playerIds: mongoose.Types.ObjectId[]) {
-    const playerObjs = await Promise.all(playerIds.map(async (playerId) => {
-      const playerObj = await User.findById(playerId, 'username').exec();
-      return {
-        id: playerObj?._id.toString(),
-        username: playerObj?.username
-      }
-    }));
-
-    const playerObjsFiltered = playerObjs.filter((playerObj) => {
-      return playerObj.id !== undefined;
-    })
-
-    return playerObjsFiltered as playerJson[];
-  }
-
-  switch (data.operationType) {
-
-    case 'insert':
-      const playerIds : mongoose.Types.Array<mongoose.Types.ObjectId> = data.fullDocument.players;
-      findAllUsernames(playerIds).then((playerObjs) => {
-        const {_id, name, roles, players, numPlayersJoined, numPlayersMax} = data.fullDocument;
-        const idString = (_id as mongoose.Types.ObjectId).toString();
-        const gameObj : openGameJson = {id: idString, name, roles, playerObjs, numPlayersJoined, numPlayersMax };
-        io.emit("openGame:create", gameObj);
-        console.log('emit create')
-      });
-      break;
-
-    case 'delete':
-      io.emit("openGame:delete", data.documentKey._id.toString());
-      break;
-
-    // only update possible is players joining/leaving the game
-    case 'update':
-      console.log('updating game');
-      const gameId = data.documentKey._id.toString();
-
-      if (!data.updateDescription.updatedFields) {
-        break;
-      }
-
-      const numPlayersJoined = data.updateDescription.updatedFields.numPlayersJoined as number;
-      const playerIdsLeave = data.updateDescription.updatedFields.players;
-
-      // if a player joins the game, data.players doesn't exist
-      // however, players.1 where the number is the index of the players array does exist
-      // and contains the player id
-      if (playerIdsLeave !== undefined) {
-        console.log('player left')
-        console.log(data.updateDescription.updatedFields);
-        findAllUsernames(playerIdsLeave).then((playerObjs) => {
-          io.emit("openGame:update:leave", gameId, numPlayersJoined, playerObjs);
-        });
-        break;
-      }
-
-      else {
-        console.log('player joined')
-        try {
-          const playerIdsJoin = Object.values(data.updateDescription.updatedFields).filter((value) => {
-            return value instanceof mongoose.Types.ObjectId;
-          }) as mongoose.Types.Array<mongoose.Types.ObjectId>;
-
-          if (playerIdsJoin.length > 0) {
-            findAllUsernames(playerIdsJoin).then((playerObjs) => {
-              io.emit("openGame:update:join", gameId, numPlayersJoined, playerObjs)
-            })
-          }
-  
-        }
-        catch (error) {
-          console.log("error");
-        }
-        break;
-      }
-  }
-})
+// changestream
+openGameChangeStream(io);
+activeGameChangeStream(io);
 
 // middleware
 app.use(cors(corsOptions));
@@ -157,3 +80,4 @@ app.use('/auth', authRouter);
 app.use(verifyJwt);
 app.use('/', openGameRouter);
 app.use('/openGames', openGameRouter);
+app.use('/activeGames', activeGameRouter);
