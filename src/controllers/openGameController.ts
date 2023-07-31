@@ -2,8 +2,9 @@ import mongoose from 'mongoose';
 import { OpenGame, OpenGameInterface, openGameJson } from '../models/openGameModel';
 import { Request, Response } from 'express';
 import { UserInterface, User } from '../models/userModel';
-import { ActiveGame, ActiveGameInterface, PlayerInterface, playerInfos} from '../models/activeGameModel';
+import { ActiveGame, ActiveGameInterface, PlayerInterface, action, PlayerInfoInterface} from '../models/activeGameModel';
 import { roleNumActions, Role} from '../rolesConfig';
+import { DateTime } from 'luxon';
 
 // TODO
 // 
@@ -80,39 +81,45 @@ const shuffle = (array: string[]) => {
 
 const convertToActive = async (openGame : OpenGameInterface, playerId: string) => {
         const shuffledRoleArray = shuffle(openGame.roles) as Role[];
-        let players : PlayerInterface[] = openGame.players.map((player, index) => {
+        let players : PlayerInterface = {}
+        openGame.players.forEach((player, index) => {
             const role = shuffledRoleArray[index];
-            return ({
+            const playerObj = {
                 playerId: player.playerId,
                 username: player.username,
                 isAlive: true,
+                toasted: false,
                 role: role,
-                numActionsLeft: roleNumActions[role]
-            });
+                numActionsLeft: roleNumActions[role],
+                events: {}
+            }
+            players[player.username] = playerObj;
         })
 
         const getPlayerInfos = async (openGame: OpenGameInterface) => {
-            const playerInfos = new Map();
+            const playerInfos : PlayerInfoInterface = {}
             await Promise.all(openGame.players.map(async (player) => {
                 const playerObj = await User.findById(player.playerId).exec();
                 if (playerObj) {
-                    playerInfos.set(player.username, { picture: playerObj.picture});
+                    // we need "" else playerInfos won't be saved
+                    playerInfos[player.username] = { picture: playerObj.picture || ""};
                 }
             }))
             return playerInfos;
         }
 
         await getPlayerInfos(openGame).then(async (playerInfos) => {
-            if (playerInfos === undefined) {
-                console.log(`it's undefined`)
-            }
+            console.log(playerInfos);
             const newActiveGame = new ActiveGame({
                 name: openGame.name,
                 players: players,
                 playerInfos: playerInfos,
-                actions: [],
+                actions: [{}],
                 library: [],
-                messages: []
+                allChat: [],
+                mafiaChat: [],
+                copChat: [],
+                nextPhase: DateTime.utc().plus({minutes: 2}).toISO()
             });
     
             await newActiveGame.save();
@@ -149,7 +156,6 @@ const addPlayerToGame = async (req: Request, res: Response) => {
 
                 if (openGame.numPlayersJoined === openGame.numPlayersMax) {
                     convertToActive(openGame, playerId).then(() => {
-                        console.log('converted open game to active game');
                         return res.json({message: 'game has started'});
                     })
                 }

@@ -90,37 +90,40 @@ const shuffle = (array) => {
 };
 const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0, function* () {
     const shuffledRoleArray = shuffle(openGame.roles);
-    let players = openGame.players.map((player, index) => {
+    let players = {};
+    openGame.players.forEach((player, index) => {
         const role = shuffledRoleArray[index];
-        return ({
+        const playerObj = {
             playerId: player.playerId,
             username: player.username,
             isAlive: true,
             role: role,
             numActionsLeft: rolesConfig_1.roleNumActions[role]
-        });
+        };
+        players[player.username] = playerObj;
     });
     const getPlayerInfos = (openGame) => __awaiter(void 0, void 0, void 0, function* () {
-        const playerInfos = new Map();
+        const playerInfos = {};
         yield Promise.all(openGame.players.map((player) => __awaiter(void 0, void 0, void 0, function* () {
             const playerObj = yield userModel_1.User.findById(player.playerId).exec();
             if (playerObj) {
-                playerInfos.set(player.username, { picture: playerObj.picture });
+                // we need "" else playerInfos won't be saved
+                playerInfos[player.username] = { picture: playerObj.picture || "" };
             }
         })));
         return playerInfos;
     });
     yield getPlayerInfos(openGame).then((playerInfos) => __awaiter(void 0, void 0, void 0, function* () {
-        if (playerInfos === undefined) {
-            console.log(`it's undefined`);
-        }
+        console.log(playerInfos);
         const newActiveGame = new activeGameModel_1.ActiveGame({
             name: openGame.name,
             players: players,
             playerInfos: playerInfos,
-            actions: [],
+            actions: [{}],
             library: [],
-            messages: []
+            allChat: [],
+            mafiaChat: [],
+            copChat: []
         });
         yield newActiveGame.save();
         yield openGameModel_1.OpenGame.findByIdAndDelete(openGame._id);
@@ -149,7 +152,6 @@ const addPlayerToGame = (req, res) => __awaiter(void 0, void 0, void 0, function
                 openGame.numPlayersJoined += 1;
                 if (openGame.numPlayersJoined === openGame.numPlayersMax) {
                     convertToActive(openGame, playerId).then(() => {
-                        console.log('converted open game to active game');
                         return res.json({ message: 'game has started' });
                     });
                 }

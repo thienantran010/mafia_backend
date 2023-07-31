@@ -1,16 +1,19 @@
-export type Role = 
-| "Villager" 
-| "Kamikaze" 
-| "Sniper" 
-| "Gravedigger" 
-| "Bulletproof" 
-| "Mafia"
-| "Godfather" 
-| "Toaster" 
-| "Cop" 
-| "Creeper" 
-| "Doctor";
+export type Role = MafiaRole | VillageRole
 
+export type MafiaRole = 
+| "Kamikaze"
+| "Mafia"
+| "Godfather"
+| "Toaster"
+
+export type VillageRole =
+| "Villager"
+| "Sniper"
+| "Gravedigger"
+| "Bulletproof"
+| "Cop"
+| "Creeper"
+| "Doctor"
 export const RoleArray : Role[] = [
     "Villager",
     "Kamikaze",

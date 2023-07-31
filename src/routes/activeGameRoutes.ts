@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bodyParser from 'body-parser';
-import { getUserActiveGames, getActiveGame } from '../controllers/activeGameController';
+import { getUserActiveGames, getActiveGame, postAction, postMessage } from '../controllers/activeGameController';
 
 const activeGameRouter = Router();
 activeGameRouter.use(bodyParser.json());
@@ -10,5 +10,8 @@ activeGameRouter.get('/getUserActiveGames', getUserActiveGames);
 
 activeGameRouter.get('/getActiveGame/:id', getActiveGame);
 
+activeGameRouter.post('/postAction/:gameId', postAction);
+
+activeGameRouter.post('/postMessage/:gameId/:chat', postMessage);
 
 export default activeGameRouter;

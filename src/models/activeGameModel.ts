@@ -1,46 +1,40 @@
-import mongoose from 'mongoose';
+import mongoose, { Date } from 'mongoose';
 import { UserInterface } from './userModel';
 import { Role } from '../rolesConfig';
 const Schema = mongoose.Schema;
 
+// player-specific library events
+interface PlayerEvents {
+    [index : string] : string[];
+}
 // player interfaces
 export interface PlayerInterface {
-    playerId: mongoose.Types.ObjectId;
-    username: string;
-    isAlive: boolean;
-    role: Role;
-    numActionsLeft: number;
+    [username : string] : {
+        playerId: mongoose.Types.ObjectId;
+        isAlive: boolean;
+        toasted: boolean;
+        role: Role;
+        numActionsLeft: number;
+        events: PlayerEvents;
+    }
 }
 
-export const playerSchema = new Schema<PlayerInterface>({
-    playerId: {type: Schema.Types.ObjectId, required: true},
-    username: {type: String, required: true},
-    isAlive: {type: Boolean, required: true},
-    role: {type: String, required: true},
-    numActionsLeft: {type: Number, required: true, min: 0}
-});
-
 export interface playerJson {
-    username: string;
-    isAlive: boolean;
-    role: string;
-    numActionsLeft: number;
+    [username : string] : {
+        playerId: string;
+        isAlive: boolean;
+        toasted: boolean;
+        role: Role;
+        numActionsLeft: number;
+        events: PlayerEvents;
+    }
 }
 
 // message interfaces
 export interface MessageInterface {
-    _id: mongoose.Types.ObjectId;
     username: string;
     content: string;
 }
-
-// content string should have username inside
-// maybe separated with symbols like ${username}messagemessagemessage
-
-export const messageSchema = new Schema<MessageInterface>({
-    username: {type: String, required: true},
-    content: {type: String, required: true},
-})
 
 export interface messageJson {
     username: string;
@@ -48,62 +42,63 @@ export interface messageJson {
     content: string;
 }
 
-// player info interfaces
-// these don't change much so embedding is better
-// if they do change, we'll just have to remember to manually update them
-
-interface PlayerInfoInterface {
-    picture: string | undefined;
+export interface PlayerInfoInterface {
+    [username: string] : {
+        picture: string | undefined;
+    }
 }
 
-export type playerInfos = mongoose.Types.Map<PlayerInfoInterface>
-
-export const playerInfoSchema = new Schema({
-    playerInfos: {type: Schema.Types.Map, required: true}
-})
-
-// active game interfaces
-// a player in players is a player's username plus their in-game state
-// playerInfo is an array of information about each player used to fill out playerinfo and messages
-// when sending the info as json
-type ActiveGameDocumentOverrides = {
-    players: mongoose.Types.DocumentArray<PlayerInterface>;
-    playerInfos: mongoose.Types.Map<PlayerInfoInterface>;
-    messages: mongoose.Types.DocumentArray<MessageInterface>;
+export interface action {
+    dayVote?: string;
+    actionVote?: string;
 }
 
-interface action {
-    role: Role;
-    target: string;
+export interface actionJson {
+    [username: string]: action;
 }
-type ActiveGameModelType = mongoose.Model<ActiveGameInterface, {}, ActiveGameDocumentOverrides>;
+
+export interface ActionInterface {
+    [username : string] : action;
+}
+
 export interface ActiveGameInterface {
     _id: mongoose.Types.ObjectId;
     name: string;
-    players: mongoose.Types.DocumentArray<PlayerInterface>;
-    playerInfos: mongoose.Types.Map<PlayerInfoInterface>;
-    actions: mongoose.Types.Map<action>[];
-    library: mongoose.Types.Array<string>;
-    messages: mongoose.Types.DocumentArray<MessageInterface>;
+    players: PlayerInterface;
+    playerInfos: PlayerInfoInterface;
+    actions: mongoose.Types.DocumentArray<ActionInterface>;
+    library: mongoose.Types.Array<mongoose.Types.Array<string>>;
+    allChat: mongoose.Types.DocumentArray<MessageInterface>;
+    mafiaChat: mongoose.Types.DocumentArray<MessageInterface>;
+    copChat: mongoose.Types.DocumentArray<MessageInterface>;
+    startDate: string;
 }
 
-export const activeGameSchema = new Schema<ActiveGameInterface, ActiveGameModelType>({
+type ActiveGameDocumentProps = {
+    
+}
+export const activeGameSchema = new Schema<ActiveGameInterface>({
     name: {type: String, required: true},
-    players: [{type: playerSchema, required: true}],
-    playerInfos: {type: Schema.Types.Map, required: true},
-    actions: [{type: Schema.Types.Map, required: true}],
-    library: [{type: String, required: true}],
-    messages: [{type: messageSchema, required: true}]
+    players: {type: Schema.Types.Mixed, required: true},
+    playerInfos: {type: Schema.Types.Mixed, required: true},
+    actions: [{type: Schema.Types.Mixed, required: true}],
+    library: [{type: Schema.Types.Array, required: true}],
+    allChat: [new Schema<MessageInterface>({ username: String, content: String})],
+    mafiaChat: [new Schema<MessageInterface>({ username: String, content: String})],
+    copChat: [new Schema<MessageInterface>({ username: String, content: String})],
+    startDate: {type: String, required: true}
 });
 
 // player info is only needed to fill out players and messages
 export interface activeGameJson {
     id: string;
     name: string;
-    players: playerJson[];
-    actions: Map<string, action>[];
-    library: string[];
-    messages: messageJson[];
+    players: playerJson;
+    actions: actionJson[];
+    library: string[][];
+    allChat: messageJson[];
+    mafiaChat: messageJson[];
+    copChat: messageJson[];
+    startDate: string;
 }
-
-export const ActiveGame = mongoose.model<ActiveGameInterface, ActiveGameModelType>('ActiveGame', activeGameSchema);
+export const ActiveGame = mongoose.model<ActiveGameInterface>('ActiveGame', activeGameSchema);
