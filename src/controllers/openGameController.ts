@@ -88,7 +88,7 @@ const convertToActive = async (openGame : OpenGameInterface, playerId: string) =
                 playerId: player.playerId,
                 username: player.username,
                 isAlive: true,
-                toasted: false,
+                toastedBy: [],
                 role: role,
                 numActionsLeft: roleNumActions[role],
                 events: {}

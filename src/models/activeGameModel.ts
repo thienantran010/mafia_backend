@@ -12,7 +12,7 @@ export interface PlayerInterface {
     [username : string] : {
         playerId: mongoose.Types.ObjectId;
         isAlive: boolean;
-        toasted: boolean;
+        toastedBy: string[];
         role: Role;
         numActionsLeft: number;
         events: PlayerEvents;
@@ -23,7 +23,7 @@ export interface playerJson {
     [username : string] : {
         playerId: string;
         isAlive: boolean;
-        toasted: boolean;
+        toastedBy: string[];
         role: Role;
         numActionsLeft: number;
         events: PlayerEvents;
@@ -71,7 +71,7 @@ export interface ActiveGameInterface {
     allChat: mongoose.Types.DocumentArray<MessageInterface>;
     mafiaChat: mongoose.Types.DocumentArray<MessageInterface>;
     copChat: mongoose.Types.DocumentArray<MessageInterface>;
-    startDate: string;
+    nextPhase: string;
 }
 
 type ActiveGameDocumentProps = {
@@ -86,7 +86,7 @@ export const activeGameSchema = new Schema<ActiveGameInterface>({
     allChat: [new Schema<MessageInterface>({ username: String, content: String})],
     mafiaChat: [new Schema<MessageInterface>({ username: String, content: String})],
     copChat: [new Schema<MessageInterface>({ username: String, content: String})],
-    startDate: {type: String, required: true}
+    nextPhase: {type: String, required: true}
 });
 
 // player info is only needed to fill out players and messages
@@ -99,6 +99,6 @@ export interface activeGameJson {
     allChat: messageJson[];
     mafiaChat: messageJson[];
     copChat: messageJson[];
-    startDate: string;
+    nextPhase: string;
 }
 export const ActiveGame = mongoose.model<ActiveGameInterface>('ActiveGame', activeGameSchema);

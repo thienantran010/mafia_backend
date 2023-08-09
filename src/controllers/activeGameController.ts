@@ -90,7 +90,7 @@ export const getActiveGame = async (req: Request, res: Response) => {
             allChat: allChat,
             mafiaChat: mafiaChat,
             copChat: copChat,
-            startDate: game.startDate
+            nextPhase: game.nextPhase
         }
 
         return res.json({activeGame});
