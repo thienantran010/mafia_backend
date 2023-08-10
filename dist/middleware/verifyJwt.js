@@ -16,6 +16,7 @@ const verifyJwt = (req, res, next) => {
         const decoded = jsonwebtoken_1.default.verify(token, ACCESS_TOKEN_KEY);
         if (typeof decoded === "object") {
             req.id = decoded.id;
+            req.username = decoded.username;
             next();
         }
     }

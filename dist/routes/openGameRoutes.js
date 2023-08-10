@@ -5,13 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const body_parser_1 = __importDefault(require("body-parser"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const openGameController_1 = require("../controllers/openGameController");
-// configuration
-dotenv_1.default.config();
-const authRouter = (0, express_1.Router)();
-authRouter.use(body_parser_1.default.json());
-authRouter.use(body_parser_1.default.urlencoded({ extended: false }));
 const openGameRouter = (0, express_1.Router)();
 openGameRouter.use(body_parser_1.default.json());
 openGameRouter.use(body_parser_1.default.urlencoded({ extended: false }));

@@ -15,6 +15,7 @@ const verifyJwt = (req: Request, res: Response, next: NextFunction) => {
         const decoded = jwt.verify(token, ACCESS_TOKEN_KEY);
         if (typeof decoded === "object") {
             req.id = decoded.id;
+            req.username = decoded.username;
             next();
         }
     }

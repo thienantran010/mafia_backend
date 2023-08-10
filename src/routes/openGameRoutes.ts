@@ -1,13 +1,6 @@
 import { Router } from 'express';
 import bodyParser from 'body-parser';
-import dotenv from 'dotenv';
 import { createOpenGame, getAllOpenGames, addPlayerToGame, removePlayerFromGame } from '../controllers/openGameController';
-
-// configuration
-dotenv.config();
-const authRouter = Router();
-authRouter.use(bodyParser.json());
-authRouter.use(bodyParser.urlencoded({extended: false}));
 
 const openGameRouter = Router();
 openGameRouter.use(bodyParser.json());

@@ -12,30 +12,24 @@ sgMail.setApiKey(SENDGRID_API_KEY);
 const ACCESS_TOKEN_KEY = process.env.ACCESS_TOKEN_KEY as string;
 const REFRESH_TOKEN_KEY = process.env.REFRESH_TOKEN_KEY as string;
 
-// data declaration
-interface Payload {
-    id: string
-}
-
-
 /*******************
 * HELPER FUNCTIONS *
 *******************/
 
 // to send mail
 const sendMail = async (email: string, verificationCode: string) : Promise<void> => {
-    const msg = {
-        to: email, // Change to your recipient
-        from: 'mafiawebappmailer@gmail.com', // Change to your verified sender
-        subject: 'Verify your Mafia account',
-        html: `Click <a href="${process.env.FRONTEND_URL}/verify/${verificationCode}"> here </a> to verify your account!`,
-      }
-    try {
+    if (process.env.MY_EMAIL) {
+        const msg = {
+            to: email,
+            from: process.env.MY_EMAIL,
+            subject: 'Verify your Mafia account',
+            html: `Click <a href="${process.env.FRONTEND_URL}/verify/${verificationCode}"> here </a> to verify your account!`,
+        }
         await sgMail.send(msg);
         console.log('Email sent');
     }
-    catch (error) {
-        console.log(error);
+    else {
+        console.log("provide a email to send from");
     }
 }
 
@@ -53,11 +47,9 @@ const createRefreshToken = (payload: JwtPayload) => {
     });
 };
 
-/*******************
-*** CONTROLLERS ****
-*******************/
-
-//refresh controller
+// handle refreshing access token
+// if cookie exists, decode the refresh token stored in the cookie
+// use the information stored in refresh token to create and send back access token
 const refresh = (req: Request, res: Response) => {
     const cookies = req.cookies;
     if (!cookies?.refreshToken) return res.status(401).json({message: 'Unauthorized'});
@@ -69,7 +61,7 @@ const refresh = (req: Request, res: Response) => {
             const handleRefresh = async (decoded : JwtPayload) => {
                 const userExists = await User.findById(decoded.id).exec();
                 if (!userExists) return res.status(401).json({message: 'Unauthorized'});
-                const accessToken = createAccessToken({ id: decoded.id });
+                const accessToken = createAccessToken({ id: decoded.id, username: decoded.username });
                 const username = userExists.username;
                 return { accessToken, username };
             }
@@ -86,7 +78,9 @@ const refresh = (req: Request, res: Response) => {
     }
 };
 
-// login controller
+// handle login
+// compares user-entered password to hashed password
+// if they match, send back access token and refresh token
 const login = async (req: Request, res: Response) => {
     const { email, password } = req.body
     if (!email || !password) {
@@ -102,7 +96,7 @@ const login = async (req: Request, res: Response) => {
             return res.status(400).json({message: "Email or password is wrong"}); // general client error
         }
         const username = existingUser.username;
-        const payload = {id: existingUser._id.toString()} as {id: string};
+        const payload = {id: existingUser._id.toString(), username: existingUser.username};
         const accessToken = createAccessToken(payload); 
         const refreshToken = createRefreshToken(payload);
         res.cookie("refreshToken", refreshToken, {
@@ -118,7 +112,8 @@ const login = async (req: Request, res: Response) => {
     }
 };
 
-// logout controller
+// handles logout
+// clears all cookies
 const logout = async (req: Request, res: Response) => {
     const cookies = req.cookies;
     if (!cookies?.refreshToken) return res.status(204).json({message: "No refresh token to clear"});
@@ -133,20 +128,25 @@ const logout = async (req: Request, res: Response) => {
     res.json({ message: 'Logged out' });
 };
 
-// register controller
+// handles registration
+
 const register = async (req: Request, res: Response) => {
     try {
         const { username, email, password } = req.body;
+
+        // if user didn't enter all fields, error
         if (!username || !email || !password) {
             return res.status(400).json({message: "All fields are required."}); // general client error
         }
 
         const userExists = await User.findOne({email: email}).exec();
 
+        // if user already exists, error
         if (userExists) {
             return res.status(409).json({ message: "User already exists" }); // conflict
         }
 
+        // else create hashed password
         const hashedPassword = await bcrypt.hash(password, 12);
         let user = {
             username: username,
@@ -155,10 +155,13 @@ const register = async (req: Request, res: Response) => {
             isVerified: false, 
         }
 
+        // save new user
         let userRecord = new User(user);
         userRecord = await userRecord.save();
         const recordId = userRecord._id;
         const recordIdString = recordId.toString();
+
+        // send email to verify user email address. they are sent a unique confirmation link
         sendMail(email, recordIdString);
         return res.json({ message: "Check email to confirm your account." });
     }
@@ -167,7 +170,8 @@ const register = async (req: Request, res: Response) => {
     }
 };
 
-// verify email controller
+// handles verification
+// link sent in confirmation will call this function
 const verifyEmail = async (req: Request, res: Response) => {
     try {
         const { recordId } = req.params;
