@@ -4,6 +4,9 @@ import { UserInterface } from '../models/userModel'
 import { Request, Response } from 'express';
 
 import { Role } from '../rolesConfig';
+
+// gets game name and game id (key)
+// for display in front-end active game list
 export const getUserActiveGames = async (req: Request, res: Response) => {
     try {
         const playerId = req.id;
@@ -25,7 +28,8 @@ export const getUserActiveGames = async (req: Request, res: Response) => {
     }
 }
 
-
+// return all info associated with an active game
+// information has been converted to a native js friendly format
 export const getActiveGame = async (req: Request, res: Response) => {
     const playerId = req.id;
     const username = req.username;
@@ -44,15 +48,15 @@ export const getActiveGame = async (req: Request, res: Response) => {
             return res.status(403).json({message: "You are not in this game"});
         }
 
+        // same object, but playerIds are now strings instead of ObjectIds
+        // front-end doesn't have mongoose so we need them to be strings
         const players : playerJson = {}
         for (const [username, playerObj] of Object.entries(game.players)) {
             players[username] = {...playerObj, playerId: playerObj.playerId.toString()}
         }
 
-        const actions : actionJson[] = game.actions.map((action) => {
-            return Object.fromEntries(Object.entries(action));
-        })
-
+        // helper function to convert an array of stored messages to front-end friendly array of messages
+        // gets player picture from playerInfo object
         const messagesToJson = (messages : MessageInterface[]) => {
             return (
                 messages.map((message) => {
@@ -77,6 +81,7 @@ export const getActiveGame = async (req: Request, res: Response) => {
             )
         }
         
+        // repackage chats for front-end use
         const allChat : messageJson[] = messagesToJson(game.allChat);
         const mafiaChat : messageJson[] = messagesToJson(game.mafiaChat);
         const copChat : messageJson[] = messagesToJson(game.copChat);
@@ -85,7 +90,7 @@ export const getActiveGame = async (req: Request, res: Response) => {
             id: game._id.toString(),
             name: game.name,
             players: players,
-            actions: actions,
+            actions: game.actions,
             library: game.library,
             allChat: allChat,
             mafiaChat: mafiaChat,
@@ -101,11 +106,11 @@ export const getActiveGame = async (req: Request, res: Response) => {
     }
 }
 
+// post/update a day vote or action vote
 export const postAction = async (req: Request, res: Response) => {
     const playerId = req.id;
     const username = req.username;
     const {dayVote, actionVote} : {dayVote: string | undefined, actionVote: string | undefined} = req.body;
-    console.log(`dayVote: ${dayVote}, actionVote: ${actionVote}`);
     try {
         const gameId = req.params.gameId;
         const game = await ActiveGame.findById(gameId).exec();
@@ -113,6 +118,7 @@ export const postAction = async (req: Request, res: Response) => {
         const playerRole = player?.role;
         const playerNumActions = player?.numActionsLeft;
         const dayActionRoles : Set<Role> = new Set(["Kamikaze"]);
+
         // if game doesn't exist
         if (!game) {
             return res.status(404).json({message: "game not found"});
@@ -120,22 +126,26 @@ export const postAction = async (req: Request, res: Response) => {
 
         if (game.actions.length > 0) {
             const currentPhaseActions = game.actions[game.actions.length - 1];
+
             // if it's daytime
             if (game.library.length % 2 === 1) {
 
-                // set action vote for daytime roles
+                // if user has a daytime role and has provided an action vote, set the vote
                 if (playerRole && dayActionRoles.has(playerRole) && playerNumActions && playerNumActions > 0 && actionVote) {
                     currentPhaseActions[username] = {...currentPhaseActions[username], actionVote: actionVote};
                 }
 
+                // user can't perform their role in the morning if it isn't a daytime role
                 else if (playerRole && !dayActionRoles.has(playerRole)) {
                     return res.json({message: "You can't perform this role in the morning."});
                 }
 
+                // user can perform their role if they don't have enough actions
                 else if (playerNumActions && playerNumActions <= 0) {
                     return res.json({message: "You have taken all the actions available to this role."});
                 }
 
+                // if there is a dayvote, set it
                 if (dayVote) {
                     currentPhaseActions[username] = {...currentPhaseActions[username], dayVote: dayVote};
                 }
@@ -144,25 +154,29 @@ export const postAction = async (req: Request, res: Response) => {
             // it's nighttime
             else {
 
-                // set action vote for night time roles
+                // if a user has a night role and has provided an action vote, set the vote
                 if (playerRole && !dayActionRoles.has(playerRole) && playerNumActions && playerNumActions > 0 && actionVote) {
                     currentPhaseActions[username] = {...currentPhaseActions[username], actionVote: actionVote}
                 }
 
+                // if user has a daytime role they can't perform their role
                 else if (playerRole && dayActionRoles.has(playerRole)) {
                     return res.json({message: "You can't perform this role at night."});
                 }
 
+                // user can't perform role if they don't have actions left
                 else if (playerNumActions && playerNumActions <= 0) {
                     return res.json({message: "You have taken all the actions available to this role."});
                 }
 
+                // if the user has a dayvote, alert them that they can't vote
                 if (dayVote) {
                     return res.json({message: "You can't day vote at night..."});
                 }
             }
 
 
+            // if anything was updated, let mongoose know that it was modified
             if (dayVote || actionVote) {
                 game.markModified('actions');
                 await game.save();
@@ -181,6 +195,7 @@ export const postAction = async (req: Request, res: Response) => {
     }
 }
 
+// post a message
 export const postMessage = async (req : Request, res : Response) => {
     const playerId = req.id;
     const username = req.username;

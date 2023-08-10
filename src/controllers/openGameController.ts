@@ -6,8 +6,7 @@ import { ActiveGame, ActiveGameInterface, PlayerInterface, action, PlayerInfoInt
 import { roleNumActions, Role} from '../rolesConfig';
 import { DateTime } from 'luxon';
 
-// TODO
-// 
+// handles creation of open games
 const createOpenGame = async (req: Request, res: Response) => {
     try{
         const hostId = req.id;
@@ -16,7 +15,7 @@ const createOpenGame = async (req: Request, res: Response) => {
         const openGameDoc = new OpenGame({
             name: name,
             roles: roles,
-            players: new mongoose.Types.DocumentArray([{playerId: hostId, username: username}]),
+            players: [{playerId: hostId, username: username}],
             numPlayersJoined: 1,
             numPlayersMax: roles.length
         });
@@ -28,6 +27,7 @@ const createOpenGame = async (req: Request, res: Response) => {
     }
 }
 
+// gets all open games for display in front-end open game list
 const getAllOpenGames = async (req: Request, res: Response) => {
     try {
         const openGameDocs = await OpenGame.find();
@@ -79,9 +79,12 @@ const shuffle = (array: string[]) => {
     return shuffledArray; 
 }; 
 
+// converts open game to active game
+// use utc time for nextPhase because it's the same everywhere (don't have to worry about time zones)
 const convertToActive = async (openGame : OpenGameInterface, playerId: string) => {
         const shuffledRoleArray = shuffle(openGame.roles) as Role[];
         let players : PlayerInterface = {}
+
         openGame.players.forEach((player, index) => {
             const role = shuffledRoleArray[index];
             const playerObj = {
@@ -127,6 +130,9 @@ const convertToActive = async (openGame : OpenGameInterface, playerId: string) =
         })
 }
 
+// handles adding a player to game
+// after an open game is full, it will be converted to an active game
+// otherwise openGame's players and numPlayersJoined fields will be updated
 const addPlayerToGame = async (req: Request, res: Response) => {
     try{
         const playerId = req.id;
@@ -138,7 +144,6 @@ const addPlayerToGame = async (req: Request, res: Response) => {
 
             if (playerId) {
 
-                // don't add the player if game has max num of players
                 if (openGame.numPlayersJoined + 1 > openGame.numPlayersMax) {
                     return res.status(404).json({ message: "Game is full."});
                 }
@@ -181,6 +186,7 @@ const addPlayerToGame = async (req: Request, res: Response) => {
     }
 }
 
+// handles removing a player from the game
 const removePlayerFromGame = async (req: Request, res: Response) => {
     try{
         const playerId = req.id;

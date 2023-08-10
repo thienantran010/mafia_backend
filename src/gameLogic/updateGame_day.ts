@@ -11,7 +11,7 @@ export default async function updateGame_day (game: HydratedDocument<ActiveGameI
     const events : event[] = []
     for (const username of alivePlayers) {
 
-        // collect day votes
+        // add day vote to a counter
         const vote = recentActions[username].dayVote;
         if (vote) {
             if (counter[vote]) {
@@ -22,7 +22,7 @@ export default async function updateGame_day (game: HydratedDocument<ActiveGameI
             }
         }
 
-        // perform action
+        // record the action as an event
         const actionVote = recentActions[username].actionVote;
         if (actionVote) {
             const event : event = {
@@ -39,8 +39,11 @@ export default async function updateGame_day (game: HydratedDocument<ActiveGameI
         }
     }
 
+    // calculate result of the day's events
     const runningState = calculateRunningState(events);
 
+    // returns whether state or library was updated
+    // not sure what will happen if we markModified when nothing changed
     const {didUpdateState, didUpdateLibrary} = updateDayState(game.players, game.library, runningState, counter);
 
     if (didUpdateState) {
@@ -61,6 +64,7 @@ function calculateRunningState(events: event[]) {
         const userRole = event.user.role;
         const targetName = event.target.username;
     
+        // record who was blown up
         if (userRole === "Kamikaze") {
             const kamikazes = runningState[targetName].blownBy;
             if (kamikazes === undefined) {
@@ -74,6 +78,7 @@ function calculateRunningState(events: event[]) {
     return runningState;
 }
 
+// use the day's events to update state
 function updateDayState(currentState: PlayerInterface, library : string[][], runningState: RunningDayState, counter: Counter) {
     let didUpdateState = false;
     let didUpdateLibrary = false;
@@ -81,10 +86,15 @@ function updateDayState(currentState: PlayerInterface, library : string[][], run
 
     for (const username in runningState) {
         if (runningState[username].blownBy) {
+
+            // if BP and has a vest (actions left)
             if (currentState[username].role === "Bulletproof" && currentState[username].numActionsLeft > 0) {
                 let vest = currentState[username].numActionsLeft;
                 let blownByIndex = 0
 
+                // refactor? a little confusing
+                // intent: if BP has vest, first kamikaze blowing up BP removes vest
+                // subsequent kamikazes kill them
                 while (vest > 0) {
                     const kamikazeName = runningState[username].blownBy[0];
                     libraryEntry.push(`${username}, the Bulletproof, was almost killed by ${kamikazeName}, the Kamikaze, but was 
@@ -95,7 +105,8 @@ function updateDayState(currentState: PlayerInterface, library : string[][], run
                 }
 
                 while (blownByIndex < runningState[username].blownBy.length) {
-                    libraryEntry.push(`${username}, the Bulletproof, was almost killed by the kamikaze, but`)
+                    const kamikazeName = runningState[username].blownBy[blownByIndex]
+                    libraryEntry.push(`${username}, the Bulletproof, was blown up by ${kamikazeName}`)
                     currentState[username].isAlive = false;
                 }
             }
@@ -122,8 +133,12 @@ function updateDayState(currentState: PlayerInterface, library : string[][], run
     return {didUpdateState, didUpdateLibrary}
 }
 
+// how it works:
+// get names of players with the most votes on them
+// usually it's one player but if it's multiple, choose one randomly
+// that player dies
 function getExecutedName(counter: Counter) {
-    // if there were no votes
+
     if (Object.keys(counter).length === 0) {
         return "";
     }

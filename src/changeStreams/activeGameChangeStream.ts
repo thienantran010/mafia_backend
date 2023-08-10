@@ -11,6 +11,7 @@ export default function activeGameChangeStream(io : Server) {
     const activeGameChangeStream = ActiveGame.watch();
     io.sockets.on('connection', function(socket) {
 
+      // add socket to appropriate chats/rooms
       socket.on('all', function(gameId) {
           socket.join(`${gameId}:all`);
       });
@@ -29,6 +30,8 @@ export default function activeGameChangeStream(io : Server) {
     | ChangeStreamUpdateDocument<ActiveGameInterface>
 
     activeGameChangeStream.on("change", (data : ActiveGameChangeStreamEvent) => {
+
+      // when a new active game is created, send the necessary data for the front-end active game list
       if (data.operationType === 'insert') {
         const game = data.fullDocument;
 
@@ -41,15 +44,18 @@ export default function activeGameChangeStream(io : Server) {
       }
 
 
+      // when a new active game is deleted, send the key so front-end can delete it from the active game list
       if (data.operationType === 'delete') {
         io.emit("activeGame:delete", data.documentKey._id.toString());
       }
 
       else if (data.operationType === 'update') {
-        console.log(data);
-        // update to action voting
+
         if (data && data.updateDescription && data.updateDescription.updatedFields) {
 
+            // returns the field that is updated based on updatedFields
+            // fields in updatedFields can be in [name].[number] format. For instance, {"allChat.3": "hi"}
+            // "allChat.3" would return "allChat"
             function updatedField(fieldToUpdate : string) {
               interface Patterns {
                 [field : string]: RegExp;

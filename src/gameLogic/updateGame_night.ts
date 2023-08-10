@@ -72,6 +72,7 @@ function sortEvents(events: event[]) {
     return events;
 }
 
+// fill out fields for each player
 function calculateRunningState(events: event[], alivePlayers: string[]) {
     const runningState : RunningState = {};
     const sortedEvents = sortEvents(events);
@@ -143,6 +144,7 @@ const shuffle = (array: string[]) => {
     return shuffledArray; 
 }; 
 
+// calculate night's events from runningState
 function updateGame(runningState: RunningState, currentState: PlayerInterface, library: string[][]) {
     let didUpdateState = false;
     let didUpdateLibrary = false;
