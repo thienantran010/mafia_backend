@@ -3,7 +3,7 @@ import { RunningState, event } from './gameLogicTypes';
 import { PlayerInterface, ActiveGameInterface } from '../models/activeGameModel';
 import { MafiaRole, Role } from '../rolesConfig';
 
-export default async function updateGame_night(game: HydratedDocument<ActiveGameInterface>, nextPhase: string) {
+export default async function updateGame_night(game: ActiveGameInterface) {
     const recentActions = game.actions[game.actions.length - 1];
     const actedPlayers = Object.keys(recentActions);
     const currentState = game.players;
@@ -33,19 +33,11 @@ export default async function updateGame_night(game: HydratedDocument<ActiveGame
 
     const runningState = calculateRunningState(events, alivePlayers);
 
-    const { didUpdateState, didUpdateLibrary } = updateGame(runningState, game.players, game.library)
+    const { didUpdateState, didUpdateLibrary, newState, newLibrary } = getUpdates(game.players, runningState, game.library);
 
-    if (didUpdateState) {
-        game.markModified('players');
-    }
-
-    if (didUpdateLibrary) {
-        game.markModified('library');
-
-    }    
+    const newGame = {...game, players: newState, library: newLibrary};
     
-    game.nextPhase = nextPhase;
-    await game.save();
+    return {didUpdateState, didUpdateLibrary, newGame};
 }
 
 type PriorityTable = {
@@ -145,7 +137,9 @@ const shuffle = (array: string[]) => {
 }; 
 
 // calculate night's events from runningState
-function updateGame(runningState: RunningState, currentState: PlayerInterface, library: string[][]) {
+function getUpdates(currentState: PlayerInterface, runningState: RunningState, library: string[][]) {
+    let newState = {...currentState};
+    let newLibrary = [...library];
     let didUpdateState = false;
     let didUpdateLibrary = false;
     const libraryEntry = [];
@@ -163,8 +157,8 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
         let snipes = runningState[username].snipedBy.length;
 
         // if undefined, set up a new array
-        if (!currentState[username].events[libraryIndex]) {
-            currentState[username].events[libraryIndex] = []
+        if (!newState[username].events[libraryIndex]) {
+            newState[username].events[libraryIndex] = []
             didUpdateState = true;
         }
 
@@ -177,7 +171,7 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
                 if (currentState[toaster].isAlive) {
                     didUpdateLibrary = true;
                     if (isBp && numActionsLeft > 0) {
-                        currentState[username].numActionsLeft = 0;
+                        newState[username].numActionsLeft = 0;
                         didUpdateState = true;
                         numActionsLeft = 0;
                         libraryEntry.push(`${username} was almost killed by the Toaster, but was saved by their vest!`);
@@ -189,7 +183,7 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
                     }
 
                     else {
-                        currentState[username].isAlive = false;
+                        newState[username].isAlive = false;
                         didUpdateState = true;
                         libraryEntry.push(`${username} was killed by the Toaster.`);
                     }
@@ -201,9 +195,9 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
         if (runningState[username].toastedBy.length > 0) {
             didUpdateState = true;
             let toasters = runningState[username].toastedBy;
-            currentState[username].toastedBy = toasters;
+            newState[username].toastedBy = toasters;
             for (const toaster in toasters) {
-                currentState[username].events[libraryIndex].push("A toaster has toasted you!");
+                newState[username].events[libraryIndex].push("A toaster has toasted you!");
             }        
         }
 
@@ -216,7 +210,7 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
             for (const attacker in attackers) {
 
                 if (isBp && numActionsLeft > 0) {
-                    currentState[username].numActionsLeft = 0;
+                    newState[username].numActionsLeft = 0;
                     didUpdateState = true;
                     numActionsLeft = 0;
                     libraryEntry.push(`${username} was almost killed by the Mafia, but was saved by their vest!`);
@@ -228,7 +222,7 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
                 }
 
                 else {
-                    currentState[username].isAlive = false;
+                    newState[username].isAlive = false;
                     didUpdateState = true;
                     libraryEntry.push(`${username} was killed by the Mafia.`);
                 }
@@ -243,7 +237,7 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
 
             for (const sniper in snipers) {
                 if (isBp && numActionsLeft > 0) {
-                    currentState[username].numActionsLeft = 0;
+                    newState[username].numActionsLeft = 0;
                     didUpdateState = true;
                     numActionsLeft = 0;
                     libraryEntry.push(`${username} was almost killed by the Mafia, but was saved by their vest!`);
@@ -255,7 +249,7 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
                 }
 
                 else {
-                    currentState[username].isAlive = false;
+                    newState[username].isAlive = false;
                     didUpdateState = true;
                     libraryEntry.push(`${username} was killed by the Sniper.`);
                 }
@@ -271,10 +265,10 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
         if (runningState[username].copTarget) {
             didUpdateState = true;
             if (visibleMafia.has(currentState[runningState[username].copTarget].role)) {
-                currentState[username].events[libraryIndex].push(`Your investigation revealed that ${runningState[username].copTarget} is sided with the mafia!`);
+                newState[username].events[libraryIndex].push(`Your investigation revealed that ${runningState[username].copTarget} is sided with the mafia!`);
             }
             else {
-                currentState[username].events[libraryIndex].push(`Your investigation revealed that ${runningState[username].copTarget} is sided with the town.`);
+                newState[username].events[libraryIndex].push(`Your investigation revealed that ${runningState[username].copTarget} is sided with the town.`);
             }
         }
 
@@ -288,14 +282,14 @@ function updateGame(runningState: RunningState, currentState: PlayerInterface, l
             const visitors = shuffle(toasters.concat(doctors, mafias, cops));
             
             for (const visitor of visitors) {
-                currentState[username].events[libraryIndex].push(`You crept ${targetName} and saw ${visitor} visit them!`);
+                newState[username].events[libraryIndex].push(`You crept ${targetName} and saw ${visitor} visit them!`);
                 didUpdateState = true;
             }
         }
     }
 
-    library.push(libraryEntry);
+    newLibrary.push(libraryEntry);
     didUpdateLibrary = true;
-    return {didUpdateState, didUpdateLibrary}
+    return {didUpdateState, didUpdateLibrary, newState, newLibrary}
 
 }

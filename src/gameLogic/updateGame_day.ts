@@ -2,7 +2,8 @@ import { HydratedDocument } from 'mongoose';
 import { ActiveGameInterface, PlayerInterface } from '../models/activeGameModel';
 import { Counter, event, RunningDayState, RunningState} from './gameLogicTypes';
 
-export default async function updateGame_day (game: HydratedDocument<ActiveGameInterface>, nextPhase: string){
+// returns new state
+export default async function updateGame_day (game: ActiveGameInterface){
     let counter : Counter = {}
     const recentActions = game.actions[game.actions.length - 1];
     const alivePlayers = Object.keys(game.players).filter((username) => {
@@ -44,18 +45,11 @@ export default async function updateGame_day (game: HydratedDocument<ActiveGameI
 
     // returns whether state or library was updated
     // not sure what will happen if we markModified when nothing changed
-    const {didUpdateState, didUpdateLibrary} = updateDayState(game.players, game.library, runningState, counter);
+    const {didUpdateState, didUpdateLibrary, newState, newLibrary} = getUpdates(game.players, runningState, game.library, counter);
 
-    if (didUpdateState) {
-        game.markModified('players');
-    }
+    const newGame = {...game, players: newState, library: newLibrary};
 
-    if (didUpdateLibrary) {
-        game.markModified('library');
-    }
-
-    game.nextPhase = nextPhase;
-    await game.save();
+    return {didUpdateState, didUpdateLibrary, newGame};
 }
 
 function calculateRunningState(events: event[]) {
@@ -79,7 +73,9 @@ function calculateRunningState(events: event[]) {
 }
 
 // use the day's events to update state
-function updateDayState(currentState: PlayerInterface, library : string[][], runningState: RunningDayState, counter: Counter) {
+function getUpdates(currentState: PlayerInterface, runningState: RunningDayState, library: string [][], counter: Counter) {
+    let newState = {...currentState};
+    let newLibrary = [...library];
     let didUpdateState = false;
     let didUpdateLibrary = false;
     const libraryEntry = [];
@@ -101,13 +97,13 @@ function updateDayState(currentState: PlayerInterface, library : string[][], run
                     saved by their bulletproof vest!`);
                     vest = 0;
                     blownByIndex += 1;
-                    currentState[username].numActionsLeft = 0;
+                    newState[username].numActionsLeft = 0;
                 }
 
                 while (blownByIndex < runningState[username].blownBy.length) {
                     const kamikazeName = runningState[username].blownBy[blownByIndex]
                     libraryEntry.push(`${username}, the Bulletproof, was blown up by ${kamikazeName}`)
-                    currentState[username].isAlive = false;
+                    newState[username].isAlive = false;
                 }
             }
         
@@ -120,17 +116,17 @@ function updateDayState(currentState: PlayerInterface, library : string[][], run
     if (executed) {
         const executedRole = currentState[executed].role;
 
-        currentState[executed].isAlive = false;
+        newState[executed].isAlive = false;
         libraryEntry.push(`${executed}, the ${executedRole}, has been executed by the village.`);
 
         didUpdateState = true;
         didUpdateLibrary = true;
     }
 
-    library.push(libraryEntry);
+    newLibrary.push(libraryEntry);
     didUpdateLibrary = true;
 
-    return {didUpdateState, didUpdateLibrary}
+    return {didUpdateState, didUpdateLibrary, newState, newLibrary}
 }
 
 // how it works:

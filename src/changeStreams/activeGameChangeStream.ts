@@ -5,7 +5,7 @@ import { ChangeStreamDeleteDocument, ChangeStreamInsertDocument, ChangeStreamUpd
 import { ActiveGame, ActiveGameInterface, playerJson, messageJson, activeGameJson, actionJson,
         ActionInterface } from '../models/activeGameModel';
 import { Server } from 'socket.io';
-import changePhase from '../jobs/changePhase';
+import initTimer from '../jobs/initTimer';
 
 export default function activeGameChangeStream(io : Server) {
     const activeGameChangeStream = ActiveGame.watch();
@@ -40,7 +40,7 @@ export default function activeGameChangeStream(io : Server) {
           name: game.name
         }
         io.emit("activeGame:create", activeGameListItem);
-        changePhase(io, game._id.toString(), game.nextPhase);
+        initTimer(io, game._id.toString(), game.nextPhase);
       }
 
 
