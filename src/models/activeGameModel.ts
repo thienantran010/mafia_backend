@@ -4,7 +4,7 @@ import { Role } from '../rolesConfig';
 const Schema = mongoose.Schema;
 
 // player-specific library events
-interface PlayerEvents {
+export interface PlayerEvents {
     [index : string] : string[];
 }
 // player interfaces

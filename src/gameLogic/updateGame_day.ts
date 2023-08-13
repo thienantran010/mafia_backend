@@ -1,19 +1,15 @@
 import { HydratedDocument } from 'mongoose';
-import { ActiveGameInterface, PlayerInterface } from '../models/activeGameModel';
+import { ActiveGameInterface, PlayerInterface, ActionInterface } from '../models/activeGameModel';
 import { Counter, event, RunningDayState, RunningState} from './gameLogicTypes';
 
 // returns new state
-export default async function updateGame_day (game: ActiveGameInterface){
+export default function updateGame_day (state: PlayerInterface, actions: ActionInterface, libraryIndex: string){
     let counter : Counter = {}
-    const recentActions = game.actions[game.actions.length - 1];
-    const alivePlayers = Object.keys(game.players).filter((username) => {
-        return game.players[username].isAlive;
-    });
     const events : event[] = []
-    for (const username of alivePlayers) {
+    for (const username in actions) {
 
         // add day vote to a counter
-        const vote = recentActions[username].dayVote;
+        const vote = actions[username].dayVote;
         if (vote) {
             if (counter[vote]) {
                 counter[vote] += 1;
@@ -24,16 +20,16 @@ export default async function updateGame_day (game: ActiveGameInterface){
         }
 
         // record the action as an event
-        const actionVote = recentActions[username].actionVote;
+        const actionVote = actions[username].actionVote;
         if (actionVote) {
             const event : event = {
                 user: {
                     username: username,
-                    role: game.players[username].role
+                    role: state[username].role
                 },
                 target: {
                     username: actionVote,
-                    role: game.players[actionVote].role
+                    role: state[actionVote].role
                 }
             }
             events.push(event);
@@ -45,11 +41,8 @@ export default async function updateGame_day (game: ActiveGameInterface){
 
     // returns whether state or library was updated
     // not sure what will happen if we markModified when nothing changed
-    const {didUpdateState, didUpdateLibrary, newState, newLibrary} = getUpdates(game.players, runningState, game.library, counter);
-
-    const newGame = {...game, players: newState, library: newLibrary};
-
-    return {didUpdateState, didUpdateLibrary, newGame};
+    const {didUpdateState, didUpdateLibrary, newState, newLibEntry} = getUpdates(state, runningState, libraryIndex, counter);
+    return {didUpdateState, didUpdateLibrary, newState, newLibEntry};
 }
 
 function calculateRunningState(events: event[]) {
@@ -60,29 +53,27 @@ function calculateRunningState(events: event[]) {
     
         // record who was blown up
         if (userRole === "Kamikaze") {
-            const kamikazes = runningState[targetName].blownBy;
-            if (kamikazes === undefined) {
-                runningState[targetName].blownBy = [event.user.username];
+            const target = runningState[targetName];
+            if (target === undefined) {
+                runningState[targetName] = {blownBy: []};
             }
-            else {
-                runningState[targetName].blownBy.push(event.user.username);
-            }
+            runningState[targetName].blownBy.push(event.user.username);
+            
         }
     }
     return runningState;
 }
 
 // use the day's events to update state
-function getUpdates(currentState: PlayerInterface, runningState: RunningDayState, library: string [][], counter: Counter) {
+function getUpdates(currentState: PlayerInterface, runningState: RunningDayState, libraryIndex: string, counter: Counter) {
     let newState = {...currentState};
-    let newLibrary = [...library];
     let didUpdateState = false;
     let didUpdateLibrary = false;
-    const libraryEntry = [];
+    const newLibEntry = [];
 
     for (const username in runningState) {
         if (runningState[username].blownBy) {
-
+            let blownByIndex = 0
             // if BP and has a vest (actions left)
             if (currentState[username].role === "Bulletproof" && currentState[username].numActionsLeft > 0) {
                 let vest = currentState[username].numActionsLeft;
@@ -93,17 +84,32 @@ function getUpdates(currentState: PlayerInterface, runningState: RunningDayState
                 // subsequent kamikazes kill them
                 while (vest > 0) {
                     const kamikazeName = runningState[username].blownBy[0];
-                    libraryEntry.push(`${username}, the Bulletproof, was almost killed by ${kamikazeName}, the Kamikaze, but was 
-                    saved by their bulletproof vest!`);
+                    newLibEntry.push(`${username}, the Bulletproof, was almost killed by ${kamikazeName}, the Kamikaze, but was saved by their bulletproof vest!`);
                     vest = 0;
                     blownByIndex += 1;
                     newState[username].numActionsLeft = 0;
+                    newState[kamikazeName].isAlive = false;
+                    newState[kamikazeName].numActionsLeft = 0;
                 }
 
                 while (blownByIndex < runningState[username].blownBy.length) {
                     const kamikazeName = runningState[username].blownBy[blownByIndex]
-                    libraryEntry.push(`${username}, the Bulletproof, was blown up by ${kamikazeName}`)
+                    newLibEntry.push(`${username}, the Bulletproof, was blown up by ${kamikazeName}, the Kamikaze.`);
+                    blownByIndex += 1;
                     newState[username].isAlive = false;
+                    newState[kamikazeName].isAlive = false;
+                    newState[kamikazeName].numActionsLeft = 0;
+                }
+            }
+
+            else if (currentState[username].role !== "Bulletproof") {
+                while (blownByIndex < runningState[username].blownBy.length) {
+                    const kamikazeName = runningState[username].blownBy[blownByIndex]
+                    newLibEntry.push(`${username}, the ${currentState[username].role}, was blown up by ${kamikazeName}, the Kamikaze.`);
+                    blownByIndex += 1;
+                    newState[username].isAlive = false;
+                    newState[kamikazeName].isAlive = false;
+                    newState[kamikazeName].numActionsLeft = 0;
                 }
             }
         
@@ -117,16 +123,12 @@ function getUpdates(currentState: PlayerInterface, runningState: RunningDayState
         const executedRole = currentState[executed].role;
 
         newState[executed].isAlive = false;
-        libraryEntry.push(`${executed}, the ${executedRole}, has been executed by the village.`);
+        newLibEntry.push(`${executed}, the ${executedRole}, was executed by the village.`);
 
         didUpdateState = true;
         didUpdateLibrary = true;
     }
-
-    newLibrary.push(libraryEntry);
-    didUpdateLibrary = true;
-
-    return {didUpdateState, didUpdateLibrary, newState, newLibrary}
+    return {didUpdateState, didUpdateLibrary, newState, newLibEntry}
 }
 
 // how it works:
