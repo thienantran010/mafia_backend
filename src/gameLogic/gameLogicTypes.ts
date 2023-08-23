@@ -1,4 +1,5 @@
 import { Role } from "../rolesConfig";
+import { PlayerInterface, ActionInterface } from "../models/activeGameModel";
 
 export interface Counter {
     [username : string] : number;
@@ -32,5 +33,13 @@ export interface RunningState {
 export interface RunningDayState {
     [username: string]: {
         blownBy: string[];
+        executed: boolean;
     }
+}
+
+export type UpdateFunction = (state: PlayerInterface, actions: ActionInterface, libraryIndex: string, shuffleCreepVisits?: boolean) => {
+    didUpdateState: boolean;
+    didUpdateLibrary: boolean;
+    updatedState: PlayerInterface;
+    newLibEntry: string[];
 }

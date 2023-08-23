@@ -18,8 +18,8 @@ const openGameModel_1 = require("../models/openGameModel");
 const userModel_1 = require("../models/userModel");
 const activeGameModel_1 = require("../models/activeGameModel");
 const rolesConfig_1 = require("../rolesConfig");
-// TODO
-// 
+const luxon_1 = require("luxon");
+// handles creation of open games
 const createOpenGame = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const hostId = req.id;
@@ -28,7 +28,7 @@ const createOpenGame = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const openGameDoc = new openGameModel_1.OpenGame({
             name: name,
             roles: roles,
-            players: new mongoose_1.default.Types.DocumentArray([{ playerId: hostId, username: username }]),
+            players: [{ playerId: hostId, username: username }],
             numPlayersJoined: 1,
             numPlayersMax: roles.length
         });
@@ -40,6 +40,7 @@ const createOpenGame = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.createOpenGame = createOpenGame;
+// gets all open games for display in front-end open game list
 const getAllOpenGames = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const openGameDocs = yield openGameModel_1.OpenGame.find();
@@ -88,6 +89,8 @@ const shuffle = (array) => {
     }
     return shuffledArray;
 };
+// converts open game to active game
+// use utc time for nextPhase because it's the same everywhere (don't have to worry about time zones)
 const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0, function* () {
     const shuffledRoleArray = shuffle(openGame.roles);
     let players = {};
@@ -97,8 +100,10 @@ const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0
             playerId: player.playerId,
             username: player.username,
             isAlive: true,
+            toastedBy: [],
             role: role,
-            numActionsLeft: rolesConfig_1.roleNumActions[role]
+            numActionsLeft: rolesConfig_1.roleNumActions[role],
+            events: {}
         };
         players[player.username] = playerObj;
     });
@@ -123,12 +128,16 @@ const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0
             library: [],
             allChat: [],
             mafiaChat: [],
-            copChat: []
+            copChat: [],
+            nextPhase: luxon_1.DateTime.utc().plus({ minutes: 2 }).toISO()
         });
         yield newActiveGame.save();
         yield openGameModel_1.OpenGame.findByIdAndDelete(openGame._id);
     }));
 });
+// handles adding a player to game
+// after an open game is full, it will be converted to an active game
+// otherwise openGame's players and numPlayersJoined fields will be updated
 const addPlayerToGame = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const playerId = req.id;
@@ -138,7 +147,6 @@ const addPlayerToGame = (req, res) => __awaiter(void 0, void 0, void 0, function
         const openGame = yield openGameModel_1.OpenGame.findById(gameId).exec();
         if (openGame) {
             if (playerId) {
-                // don't add the player if game has max num of players
                 if (openGame.numPlayersJoined + 1 > openGame.numPlayersMax) {
                     return res.status(404).json({ message: "Game is full." });
                 }
@@ -174,6 +182,7 @@ const addPlayerToGame = (req, res) => __awaiter(void 0, void 0, void 0, function
     }
 });
 exports.addPlayerToGame = addPlayerToGame;
+// handles removing a player from the game
 const removePlayerFromGame = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const playerId = req.id;

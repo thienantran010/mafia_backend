@@ -1,9 +1,9 @@
 import { HydratedDocument } from 'mongoose';
 import { ActiveGameInterface, PlayerInterface, ActionInterface } from '../models/activeGameModel';
-import { Counter, event, RunningDayState, RunningState} from './gameLogicTypes';
+import { Counter, event, RunningDayState, RunningState, UpdateFunction} from './gameLogicTypes';
 
 // returns new state
-export default function updateGame_day (state: PlayerInterface, actions: ActionInterface, libraryIndex: string){
+const updateGame_day : UpdateFunction = (state, actions, libraryIndex) => {
     let counter : Counter = {}
     const events : event[] = []
     for (const username in actions) {
@@ -36,16 +36,20 @@ export default function updateGame_day (state: PlayerInterface, actions: ActionI
         }
     }
 
+    const executed = getExecutedName(counter);
+
     // calculate result of the day's events
-    const runningState = calculateRunningState(events);
+    const runningState = calculateRunningState(events, executed);
 
     // returns whether state or library was updated
     // not sure what will happen if we markModified when nothing changed
-    const {didUpdateState, didUpdateLibrary, newState, newLibEntry} = getUpdates(state, runningState, libraryIndex, counter);
-    return {didUpdateState, didUpdateLibrary, newState, newLibEntry};
+    const {didUpdateState, didUpdateLibrary, updatedState, newLibEntry} = getUpdates(state, runningState, libraryIndex, counter);
+    return {didUpdateState, didUpdateLibrary, updatedState, newLibEntry};
 }
 
-function calculateRunningState(events: event[]) {
+export default updateGame_day;
+
+function calculateRunningState(events: event[], executed: string) {
     const runningState : RunningDayState = {}
     for (const event of events) {
         const userRole = event.user.role;
@@ -54,25 +58,32 @@ function calculateRunningState(events: event[]) {
         // record who was blown up
         if (userRole === "Kamikaze") {
             const target = runningState[targetName];
-            if (target === undefined) {
-                runningState[targetName] = {blownBy: []};
+            if (targetName && target === undefined) {
+                runningState[targetName] = {blownBy: [], executed: false};
             }
             runningState[targetName].blownBy.push(event.user.username);
             
         }
+    }
+
+    if (executed) {
+        const executedVal = runningState[executed];
+        if (executedVal === undefined) {
+            runningState[executed] = {blownBy: [], executed: true}
+        }
+        runningState[executed].executed = true;
     }
     return runningState;
 }
 
 // use the day's events to update state
 function getUpdates(currentState: PlayerInterface, runningState: RunningDayState, libraryIndex: string, counter: Counter) {
-    let newState = {...currentState};
     let didUpdateState = false;
     let didUpdateLibrary = false;
     const newLibEntry = [];
 
     for (const username in runningState) {
-        if (runningState[username].blownBy) {
+        if (runningState[username].blownBy.length > 0) {
             let blownByIndex = 0
             // if BP and has a vest (actions left)
             if (currentState[username].role === "Bulletproof" && currentState[username].numActionsLeft > 0) {
@@ -84,21 +95,21 @@ function getUpdates(currentState: PlayerInterface, runningState: RunningDayState
                 // subsequent kamikazes kill them
                 while (vest > 0) {
                     const kamikazeName = runningState[username].blownBy[0];
-                    newLibEntry.push(`${username}, the Bulletproof, was almost killed by ${kamikazeName}, the Kamikaze, but was saved by their bulletproof vest!`);
+                    newLibEntry.push(`${username} was almost killed by ${kamikazeName}, the Kamikaze, but was saved by their bulletproof vest!`);
                     vest = 0;
                     blownByIndex += 1;
-                    newState[username].numActionsLeft = 0;
-                    newState[kamikazeName].isAlive = false;
-                    newState[kamikazeName].numActionsLeft = 0;
+                    currentState[username].numActionsLeft = 0;
+                    currentState[kamikazeName].isAlive = false;
+                    currentState[kamikazeName].numActionsLeft = 0;
                 }
 
                 while (blownByIndex < runningState[username].blownBy.length) {
                     const kamikazeName = runningState[username].blownBy[blownByIndex]
                     newLibEntry.push(`${username}, the Bulletproof, was blown up by ${kamikazeName}, the Kamikaze.`);
                     blownByIndex += 1;
-                    newState[username].isAlive = false;
-                    newState[kamikazeName].isAlive = false;
-                    newState[kamikazeName].numActionsLeft = 0;
+                    currentState[username].isAlive = false;
+                    currentState[kamikazeName].isAlive = false;
+                    currentState[kamikazeName].numActionsLeft = 0;
                 }
             }
 
@@ -107,34 +118,32 @@ function getUpdates(currentState: PlayerInterface, runningState: RunningDayState
                     const kamikazeName = runningState[username].blownBy[blownByIndex]
                     newLibEntry.push(`${username}, the ${currentState[username].role}, was blown up by ${kamikazeName}, the Kamikaze.`);
                     blownByIndex += 1;
-                    newState[username].isAlive = false;
-                    newState[kamikazeName].isAlive = false;
-                    newState[kamikazeName].numActionsLeft = 0;
+                    currentState[username].isAlive = false;
+                    currentState[kamikazeName].isAlive = false;
+                    currentState[kamikazeName].numActionsLeft = 0;
                 }
             }
         
             didUpdateState = true;
             didUpdateLibrary = true;
         }
+
+        if (runningState[username].executed) {
+            currentState[username].isAlive  =false;
+            newLibEntry.push(`${username}, the ${currentState[username].role}, was executed by the Village.`);
+            didUpdateState = true;
+            didUpdateLibrary = true;
+        }
     }
 
-    const executed = getExecutedName(counter);
-    if (executed) {
-        const executedRole = currentState[executed].role;
-
-        newState[executed].isAlive = false;
-        newLibEntry.push(`${executed}, the ${executedRole}, was executed by the village.`);
-
-        didUpdateState = true;
-        didUpdateLibrary = true;
-    }
-    return {didUpdateState, didUpdateLibrary, newState, newLibEntry}
+    return {didUpdateState, didUpdateLibrary, updatedState: currentState, newLibEntry}
 }
 
 // how it works:
 // get names of players with the most votes on them
 // usually it's one player but if it's multiple, choose one randomly
 // that player dies
+// else return an empty string
 function getExecutedName(counter: Counter) {
 
     if (Object.keys(counter).length === 0) {

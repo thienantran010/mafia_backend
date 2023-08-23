@@ -29,18 +29,18 @@ const REFRESH_TOKEN_KEY = process.env.REFRESH_TOKEN_KEY;
 *******************/
 // to send mail
 const sendMail = (email, verificationCode) => __awaiter(void 0, void 0, void 0, function* () {
-    const msg = {
-        to: email,
-        from: 'mafiawebappmailer@gmail.com',
-        subject: 'Verify your Mafia account',
-        html: `Click <a href="${process.env.FRONTEND_URL}/verify/${verificationCode}"> here </a> to verify your account!`,
-    };
-    try {
+    if (process.env.MY_EMAIL) {
+        const msg = {
+            to: email,
+            from: process.env.MY_EMAIL,
+            subject: 'Verify your Mafia account',
+            html: `Click <a href="${process.env.FRONTEND_URL}/verify/${verificationCode}"> here </a> to verify your account!`,
+        };
         yield mail_1.default.send(msg);
         console.log('Email sent');
     }
-    catch (error) {
-        console.log(error);
+    else {
+        console.log("provide a email to send from");
     }
 });
 // create access token
@@ -55,10 +55,9 @@ const createRefreshToken = (payload) => {
         expiresIn: 3 * 24 * 60 * 60,
     });
 };
-/*******************
-*** CONTROLLERS ****
-*******************/
-//refresh controller
+// handle refreshing access token
+// if cookie exists, decode the refresh token stored in the cookie
+// use the information stored in refresh token to create and send back access token
 const refresh = (req, res) => {
     const cookies = req.cookies;
     if (!(cookies === null || cookies === void 0 ? void 0 : cookies.refreshToken))
@@ -86,7 +85,9 @@ const refresh = (req, res) => {
     }
 };
 exports.refresh = refresh;
-// login controller
+// handle login
+// compares user-entered password to hashed password
+// if they match, send back access token and refresh token
 const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -102,7 +103,6 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             return res.status(400).json({ message: "Email or password is wrong" }); // general client error
         }
         const username = existingUser.username;
-        // change payload
         const payload = { id: existingUser._id.toString(), username: existingUser.username };
         const accessToken = createAccessToken(payload);
         const refreshToken = createRefreshToken(payload);
@@ -119,7 +119,8 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.login = login;
-// logout controller
+// handles logout
+// clears all cookies
 const logout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const cookies = req.cookies;
     if (!(cookies === null || cookies === void 0 ? void 0 : cookies.refreshToken))
@@ -132,17 +133,20 @@ const logout = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     res.json({ message: 'Logged out' });
 });
 exports.logout = logout;
-// register controller
+// handles registration
 const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { username, email, password } = req.body;
+        // if user didn't enter all fields, error
         if (!username || !email || !password) {
             return res.status(400).json({ message: "All fields are required." }); // general client error
         }
         const userExists = yield userModel_1.User.findOne({ email: email }).exec();
+        // if user already exists, error
         if (userExists) {
             return res.status(409).json({ message: "User already exists" }); // conflict
         }
+        // else create hashed password
         const hashedPassword = yield bcrypt_1.default.hash(password, 12);
         let user = {
             username: username,
@@ -150,10 +154,12 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             hashedPassword: hashedPassword,
             isVerified: false,
         };
+        // save new user
         let userRecord = new userModel_1.User(user);
         userRecord = yield userRecord.save();
         const recordId = userRecord._id;
         const recordIdString = recordId.toString();
+        // send email to verify user email address. they are sent a unique confirmation link
         sendMail(email, recordIdString);
         return res.json({ message: "Check email to confirm your account." });
     }
@@ -162,7 +168,8 @@ const register = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.register = register;
-// verify email controller
+// handles verification
+// link sent in confirmation will call this function
 const verifyEmail = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { recordId } = req.params;
