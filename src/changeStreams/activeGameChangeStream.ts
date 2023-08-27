@@ -5,7 +5,7 @@ import { ChangeStreamDeleteDocument, ChangeStreamInsertDocument, ChangeStreamUpd
 import { ActiveGame, ActiveGameInterface, playerJson, messageJson, activeGameJson, actionJson,
         ActionInterface } from '../models/activeGameModel';
 import { Server } from 'socket.io';
-import initTimer from '../jobs/initTimer';
+import runGame from '../gameLogic/runGame';
 
 export default function activeGameChangeStream(io : Server) {
     const activeGameChangeStream = ActiveGame.watch();
@@ -33,6 +33,7 @@ export default function activeGameChangeStream(io : Server) {
 
       // when a new active game is created, send the necessary data for the front-end active game list
       if (data.operationType === 'insert') {
+        console.log('here')
         const game = data.fullDocument;
 
         const activeGameListItem = {
@@ -40,7 +41,8 @@ export default function activeGameChangeStream(io : Server) {
           name: game.name
         }
         io.emit("activeGame:create", activeGameListItem);
-        initTimer(io, game._id.toString(), game.nextPhase);
+        runGame(game._id.toString());
+        console.log('here2')
       }
 
 
@@ -103,7 +105,7 @@ export default function activeGameChangeStream(io : Server) {
               }
 
               if (updatedField(field) === 'nextPhase') {
-                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('phase', value);
+                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('nextPhase', value);
               }
             }
         }

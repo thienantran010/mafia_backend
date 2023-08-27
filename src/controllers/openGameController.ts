@@ -111,23 +111,26 @@ const convertToActive = async (openGame : OpenGameInterface, playerId: string) =
             return playerInfos;
         }
 
-        await getPlayerInfos(openGame).then(async (playerInfos) => {
-            console.log(playerInfos);
-            const newActiveGame = new ActiveGame({
-                name: openGame.name,
-                players: players,
-                playerInfos: playerInfos,
-                actions: [{}],
-                library: [],
-                allChat: [],
-                mafiaChat: [],
-                copChat: [],
-                nextPhase: DateTime.utc().plus({minutes: 2}).toISO()
-            });
-    
-            await newActiveGame.save();
-            await OpenGame.findByIdAndDelete(openGame._id);
-        })
+        const nextPhase = DateTime.utc().plus({minutes: 2}).toISO();
+        if (nextPhase) {
+            await getPlayerInfos(openGame).then(async (playerInfos) => {
+                const newActiveGame = new ActiveGame({
+                    name: openGame.name,
+                    players: players,
+                    playerInfos: playerInfos,
+                    actions: [{}],
+                    library: [],
+                    allChat: [],
+                    mafiaChat: [],
+                    copChat: [],
+                    nextPhase: DateTime.utc().plus({minutes: 2}).toISO()
+                });
+
+                await newActiveGame.save();
+                await OpenGame.findByIdAndDelete(openGame._id);
+            })
+
+        }
 }
 
 // handles adding a player to game

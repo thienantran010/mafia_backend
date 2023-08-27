@@ -5,6 +5,7 @@ import { MafiaRole, Role, roleNumActions } from '../rolesConfig';
 import { UpdateFunction } from './gameLogicTypes';
 import {cloneDeep} from 'lodash';
 
+// updates state to reflect new state
 const updateGame_night : UpdateFunction = (state, actions, libraryIndex, shuffleCreepVisits = true) => {
     const alivePlayers = Object.keys(state).filter((username) => {
         return state[username].isAlive;

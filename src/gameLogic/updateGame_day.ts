@@ -2,7 +2,7 @@ import { HydratedDocument } from 'mongoose';
 import { ActiveGameInterface, PlayerInterface, ActionInterface } from '../models/activeGameModel';
 import { Counter, event, RunningDayState, RunningState, UpdateFunction} from './gameLogicTypes';
 
-// returns new state
+// edits state to reflect new state
 const updateGame_day : UpdateFunction = (state, actions, libraryIndex) => {
     let counter : Counter = {}
     const events : event[] = []

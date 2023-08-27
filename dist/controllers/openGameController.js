@@ -118,22 +118,24 @@ const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0
         })));
         return playerInfos;
     });
-    yield getPlayerInfos(openGame).then((playerInfos) => __awaiter(void 0, void 0, void 0, function* () {
-        console.log(playerInfos);
-        const newActiveGame = new activeGameModel_1.ActiveGame({
-            name: openGame.name,
-            players: players,
-            playerInfos: playerInfos,
-            actions: [{}],
-            library: [],
-            allChat: [],
-            mafiaChat: [],
-            copChat: [],
-            nextPhase: luxon_1.DateTime.utc().plus({ minutes: 2 }).toISO()
-        });
-        yield newActiveGame.save();
-        yield openGameModel_1.OpenGame.findByIdAndDelete(openGame._id);
-    }));
+    const nextPhase = luxon_1.DateTime.utc().plus({ minutes: 2 }).toISO();
+    if (nextPhase) {
+        yield getPlayerInfos(openGame).then((playerInfos) => __awaiter(void 0, void 0, void 0, function* () {
+            const newActiveGame = new activeGameModel_1.ActiveGame({
+                name: openGame.name,
+                players: players,
+                playerInfos: playerInfos,
+                actions: [{}],
+                library: [],
+                allChat: [],
+                mafiaChat: [],
+                copChat: [],
+                nextPhase: luxon_1.DateTime.utc().plus({ minutes: 2 }).toISO()
+            });
+            yield newActiveGame.save();
+            yield openGameModel_1.OpenGame.findByIdAndDelete(openGame._id);
+        }));
+    }
 });
 // handles adding a player to game
 // after an open game is full, it will be converted to an active game
