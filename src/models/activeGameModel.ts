@@ -71,7 +71,7 @@ export interface ActiveGameInterface {
     allChat: mongoose.Types.DocumentArray<MessageInterface>;
     mafiaChat: mongoose.Types.DocumentArray<MessageInterface>;
     copChat: mongoose.Types.DocumentArray<MessageInterface>;
-    nextPhase: string;
+    timeLeft: string;
 }
 
 type ActiveGameDocumentProps = {
@@ -86,7 +86,7 @@ export const activeGameSchema = new Schema<ActiveGameInterface>({
     allChat: [new Schema<MessageInterface>({ username: String, content: String})],
     mafiaChat: [new Schema<MessageInterface>({ username: String, content: String})],
     copChat: [new Schema<MessageInterface>({ username: String, content: String})],
-    nextPhase: {type: String, required: true}
+    timeLeft: {type: String, required: true}
 });
 
 // player info is only needed to fill out players and messages
@@ -99,6 +99,6 @@ export interface activeGameJson {
     allChat: messageJson[];
     mafiaChat: messageJson[];
     copChat: messageJson[];
-    nextPhase: string;
+    timeLeft: string;
 }
 export const ActiveGame = mongoose.model<ActiveGameInterface>('ActiveGame', activeGameSchema);

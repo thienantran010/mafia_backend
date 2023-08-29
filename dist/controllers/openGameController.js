@@ -118,8 +118,8 @@ const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0
         })));
         return playerInfos;
     });
-    const nextPhase = luxon_1.DateTime.utc().plus({ minutes: 2 }).toISO();
-    if (nextPhase) {
+    const timeLeft = luxon_1.Duration.fromObject({ seconds: 10 }).toISO();
+    if (timeLeft) {
         yield getPlayerInfos(openGame).then((playerInfos) => __awaiter(void 0, void 0, void 0, function* () {
             const newActiveGame = new activeGameModel_1.ActiveGame({
                 name: openGame.name,
@@ -130,7 +130,7 @@ const convertToActive = (openGame, playerId) => __awaiter(void 0, void 0, void 0
                 allChat: [],
                 mafiaChat: [],
                 copChat: [],
-                nextPhase: luxon_1.DateTime.utc().plus({ minutes: 2 }).toISO()
+                timeLeft: timeLeft
             });
             yield newActiveGame.save();
             yield openGameModel_1.OpenGame.findByIdAndDelete(openGame._id);

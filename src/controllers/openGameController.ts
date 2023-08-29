@@ -4,7 +4,7 @@ import { Request, Response } from 'express';
 import { UserInterface, User } from '../models/userModel';
 import { ActiveGame, ActiveGameInterface, PlayerInterface, action, PlayerInfoInterface} from '../models/activeGameModel';
 import { roleNumActions, Role} from '../rolesConfig';
-import { DateTime } from 'luxon';
+import { Duration } from 'luxon';
 
 // handles creation of open games
 const createOpenGame = async (req: Request, res: Response) => {
@@ -111,8 +111,8 @@ const convertToActive = async (openGame : OpenGameInterface, playerId: string) =
             return playerInfos;
         }
 
-        const nextPhase = DateTime.utc().plus({minutes: 2}).toISO();
-        if (nextPhase) {
+        const timeLeft = Duration.fromObject({seconds: 10}).toISO();
+        if (timeLeft) {
             await getPlayerInfos(openGame).then(async (playerInfos) => {
                 const newActiveGame = new ActiveGame({
                     name: openGame.name,
@@ -123,7 +123,7 @@ const convertToActive = async (openGame : OpenGameInterface, playerId: string) =
                     allChat: [],
                     mafiaChat: [],
                     copChat: [],
-                    nextPhase: DateTime.utc().plus({minutes: 2}).toISO()
+                    timeLeft: timeLeft
                 });
 
                 await newActiveGame.save();

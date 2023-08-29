@@ -1,5 +1,5 @@
 import { Server } from 'socket.io'
-import { DateTime } from 'luxon'; 
+import { Duration } from 'luxon'; 
 import { ActiveGame, action, PlayerInterface } from '../models/activeGameModel';
 import { ActiveGameInterface } from '../models/activeGameModel';
 import updateGame_day from './updateGame_day';
@@ -18,19 +18,14 @@ export default async function updateGame(gameId : string | undefined) {
             const actions = game.actions[game.actions.length - 1];
             const libraryIndex = game.library.length.toString();
             const { didUpdateLibrary, didUpdateState, updatedState, newLibEntry } = updateFunction(state, actions, libraryIndex);
-            game.library.push(newLibEntry);
 
-            if (didUpdateState) {
-                game.markModified("players");
-            }
-
-            const currentState = game.players;
-            const alivePlayers = Object.keys(currentState).filter((key : string) => currentState[key].isAlive);
+            // calculate if mafia or village won
+            const alivePlayers = Object.keys(updatedState).filter((key : string) => updatedState[key].isAlive);
             let numMafiaAlive = 0;
             let numVillageAlive = 0;
             const MafiaRoles : Set<Role> = new Set(["Mafia", "Godfather", "Kamikaze", "Toaster"]);
             for (const player of alivePlayers) {
-                if (MafiaRoles.has(currentState[player].role)) {
+                if (MafiaRoles.has(updatedState[player].role)) {
                     numMafiaAlive += 1;
                 }
                 else {
@@ -38,32 +33,35 @@ export default async function updateGame(gameId : string | undefined) {
                 }
             }
 
-            if (numMafiaAlive > numVillageAlive) {
-                game.nextPhase = "GAME ENDED";
-            }
-            else {
-                const nextPhase = DateTime.fromISO(game.nextPhase).plus({minutes: 2}).toISO();
-                if (nextPhase) {
-                    game.nextPhase = nextPhase;
+            if (numMafiaAlive > numVillageAlive || numMafiaAlive == 0) {
+                game.timeLeft = "GAME ENDED";
+                game.markModified("timeLeft");
+
+                if (numMafiaAlive > numVillageAlive) {
+                    newLibEntry.push("The Mafia has won!");
+                }
+                else {
+                    newLibEntry.push("The Village has won!");
                 }
             }
-
-            game.markModified("nextPhase");
+            game.library.push(newLibEntry);
             game.markModified("library");
-            console.log(game);
-            try {
-                await game.save();
-                console.log("game saved successfully");
-            }
-            catch {
-                console.log("problem is saving game");
-            }
-            return {message: "Game updated"};
-        }
 
+            // add empty object to actions array
+            game.actions.push({});
+            game.markModified("actions");
+
+            if (didUpdateState) {
+                game.markModified("players");
+            }
+
+            return {message: "Game saved", updatedGame: await game.save()}
+        }
+        
         else {
             return {message: "Game could not be found"}
         }
+
     }
 
     else {

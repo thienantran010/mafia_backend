@@ -33,7 +33,6 @@ export default function activeGameChangeStream(io : Server) {
 
       // when a new active game is created, send the necessary data for the front-end active game list
       if (data.operationType === 'insert') {
-        console.log('here')
         const game = data.fullDocument;
 
         const activeGameListItem = {
@@ -42,7 +41,6 @@ export default function activeGameChangeStream(io : Server) {
         }
         io.emit("activeGame:create", activeGameListItem);
         runGame(game._id.toString());
-        console.log('here2')
       }
 
 
@@ -68,7 +66,8 @@ export default function activeGameChangeStream(io : Server) {
                 'mafiaChat': /^mafiaChat(\.\d+)?$/,
                 'copChat': /^copChat(\.\d+)?$/,
                 'library': /^library(\.\d+)?$/,
-                'nextPhase': /nextPhase/,
+                'timeLeft': /timeLeft/,
+                'players': /^players(\.\d+)?$/,
               }
 
               for (const field in patterns) {
@@ -85,27 +84,52 @@ export default function activeGameChangeStream(io : Server) {
             for (const [field, value] of Object.entries(updatedFields)) {
 
               if (updatedField(field) === 'actions') {
-                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('actions', value);
+                if (Array.isArray(value)) {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('actions', value[value.length - 1]);
+                }
+                else {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('actions', value);
+                }
               }
 
               if (updatedField(field) === 'allChat') {
-                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', "allChat", value);
+                if (Array.isArray(value)) {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', 'allChat', value[value.length - 1]);
+                }
+                else {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', "allChat", value);
+                }
               }
 
               if (updatedField(field) === 'mafiaChat') {
-                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', 'mafiaChat', value);
+                if (Array.isArray(value)) {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', 'mafiaChat', value[value.length - 1]);
+                }
+                else {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', "mafiaChat", value);
+                }
               }
 
               if (updatedField(field) === 'copChat') {
-                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', 'copChat', value);
+                if (Array.isArray(value)) {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', 'copChat', value[value.length - 1]);
+                }
+                else {
+                  io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('chat', "copChat", value);
+                }
               }
 
               if (updatedField(field) === 'library') {
                 io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('library', value);
               }
 
-              if (updatedField(field) === 'nextPhase') {
-                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('nextPhase', value);
+              if (updatedField(field) === "players") {
+                console.log(value);
+                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('players', value);
+              }
+
+              if (updatedField(field) === 'timeLeft') {
+                io.sockets.in(`${data.documentKey._id.toString()}:all`).emit('timeLeft', value);
               }
             }
         }

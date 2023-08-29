@@ -95,7 +95,7 @@ export const getActiveGame = async (req: Request, res: Response) => {
             allChat: allChat,
             mafiaChat: mafiaChat,
             copChat: copChat,
-            nextPhase: game.nextPhase
+            timeLeft: game.timeLeft
         }
 
         return res.json({activeGame});
@@ -136,12 +136,12 @@ export const postAction = async (req: Request, res: Response) => {
                 }
 
                 // user can't perform their role in the morning if it isn't a daytime role
-                else if (playerRole && !dayActionRoles.has(playerRole)) {
+                else if (actionVote && playerRole && !dayActionRoles.has(playerRole)) {
                     return res.json({message: "You can't perform this role in the morning."});
                 }
 
                 // user can perform their role if they don't have enough actions
-                else if (playerNumActions && playerNumActions <= 0) {
+                else if (actionVote && playerNumActions && playerNumActions <= 0) {
                     return res.json({message: "You have taken all the actions available to this role."});
                 }
 
@@ -160,12 +160,12 @@ export const postAction = async (req: Request, res: Response) => {
                 }
 
                 // if user has a daytime role they can't perform their role
-                else if (playerRole && dayActionRoles.has(playerRole)) {
+                else if (actionVote && playerRole && dayActionRoles.has(playerRole)) {
                     return res.json({message: "You can't perform this role at night."});
                 }
 
                 // user can't perform role if they don't have actions left
-                else if (playerNumActions && playerNumActions <= 0) {
+                else if (actionVote && playerNumActions && playerNumActions <= 0) {
                     return res.json({message: "You have taken all the actions available to this role."});
                 }
 
